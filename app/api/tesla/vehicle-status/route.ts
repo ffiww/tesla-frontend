@@ -8,8 +8,8 @@ import crypto from "crypto";
 /*
  * 验证 Dashboard Session。
  *
- * 签名规则必须和我们现有的
- * vehicle-status / wake-up 保持一致。
+ * Session 由 api.ffiww.com 的 Tesla OAuth callback
+ * 登录成功后签发。
  */
 function isValidDashboardSession(
   sessionValue: string | undefined
@@ -80,9 +80,8 @@ export async function GET(
   request: NextRequest
 ) {
   /*
-   * 第一层安全检查：
-   * 浏览器必须拥有有效的
-   * Dashboard Session。
+   * 第一层：
+   * 必须拥有有效 Dashboard Session。
    */
   const session =
     request.cookies.get(
@@ -97,6 +96,7 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
+        connected: false,
         authenticated: false,
         error: "Unauthorized",
       },
@@ -108,10 +108,11 @@ export async function GET(
 
   /*
    * 第二层：
+   * frontend server 使用
    * INTERNAL_API_SECRET
-   * 只在 Vercel 服务器内部读取。
+   * 调用真正的 Tesla backend。
    *
-   * 浏览器永远不会看到它。
+   * Secret 不会暴露给浏览器。
    */
   const internalApiSecret =
     process.env.INTERNAL_API_SECRET;
@@ -124,6 +125,8 @@ export async function GET(
     return NextResponse.json(
       {
         success: false,
+        connected: false,
+        authenticated: true,
         error:
           "Server configuration error",
       },
@@ -135,11 +138,12 @@ export async function GET(
 
   try {
     /*
-     * 调用我们刚刚建立的
-     * tesla-api fleet-status 接口。
+     * 注意：
+     * 这里必须调用 vehicle-status，
+     * 不能调用 fleet-status。
      */
     const response = await fetch(
-      "https://api.ffiww.com/api/tesla/fleet-status",
+      "https://api.ffiww.com/api/tesla/vehicle-status",
       {
         method: "GET",
 
@@ -156,14 +160,14 @@ export async function GET(
       await response.json();
 
     /*
-     * 原样返回 Tesla API 的诊断结果。
-     *
-     * 后端接口本身不会返回
-     * Tesla Access Token、
-     * Refresh Token 或 Internal Secret。
+     * 登录已经通过，因此在返回给 Dashboard
+     * 的数据中明确标记 authenticated = true。
      */
     return NextResponse.json(
-      data,
+      {
+        ...data,
+        authenticated: true,
+      },
       {
         status:
           response.status,
@@ -171,16 +175,17 @@ export async function GET(
     );
   } catch (error) {
     console.error(
-      "Tesla fleet-status proxy error:",
+      "Tesla vehicle-status proxy error:",
       error
     );
 
     return NextResponse.json(
       {
         success: false,
+        connected: false,
         authenticated: true,
         error:
-          "Fleet Status 查询失败，请稍后重试。",
+          "车辆状态查询失败，请稍后重试。",
       },
       {
         status: 502,
