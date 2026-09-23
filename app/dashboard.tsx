@@ -51,6 +51,7 @@ type VehiclePayload = {
   missingConfig?: string[];
   error?: string;
   sleeping?: boolean;
+  realtimeUnavailable?: boolean;
 };
 
 const formatter = new Intl.DateTimeFormat("zh-CN", {
@@ -63,7 +64,10 @@ const formatter = new Intl.DateTimeFormat("zh-CN", {
 const display = (
   v: number | null | undefined,
   suffix = ""
-) => (v == null ? "—" : `${Math.round(v)}${suffix}`);
+) =>
+  v == null
+    ? "—"
+    : `${Math.round(v)}${suffix}`;
 
 function Sparkline({
   history,
@@ -71,14 +75,18 @@ function Sparkline({
   history: Snapshot[];
 }) {
   const points = history
-    .filter((item) => item.batteryLevel != null)
+    .filter(
+      (item) => item.batteryLevel != null
+    )
     .slice(-12);
 
   if (points.length < 2) {
     return (
       <div className="empty-chart">
         <Route size={22} />
-        <span>首次刷新后开始记录电量趋势</span>
+        <span>
+          首次刷新后开始记录电量趋势
+        </span>
       </div>
     );
   }
@@ -87,10 +95,14 @@ function Sparkline({
     .map(
       (item, index) =>
         `${index === 0 ? "M" : "L"} ${
-          (index / (points.length - 1)) * 100
+          (index /
+            (points.length - 1)) *
+          100
         } ${
           62 -
-          ((item.batteryLevel ?? 0) / 100) * 52
+          ((item.batteryLevel ?? 0) /
+            100) *
+            52
         }`
     )
     .join(" ");
@@ -188,97 +200,101 @@ export default function Dashboard({
     void load();
   }, [load]);
 
-  /*
-   * 退出 Dashboard 登录
-   */
-  const logout = useCallback(async () => {
-    setLoggingOut(true);
+  const logout =
+    useCallback(async () => {
+      setLoggingOut(true);
 
-    try {
-      const response = await fetch(
-        "/api/tesla/logout",
-        {
-          method: "POST",
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error("退出失败");
-      }
-
-      /*
-       * 重新加载整个页面。
-       * 下一次 vehicle-status 请求已经没有 Session，
-       * 因此会返回 401，不再显示车辆数据。
-       */
-      window.location.reload();
-    } catch {
-      setLoggingOut(false);
-      window.alert(
-        "退出登录失败，请稍后重试。"
-      );
-    }
-  }, []);
-
-  const wakeUp = useCallback(async () => {
-    setWaking(true);
-    setWakeError(null);
-
-    try {
-      const response = await fetch(
-        "/api/tesla/wake-up",
-        {
-          method: "POST",
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(
-          "唤醒请求失败，请稍后重试。"
-        );
-      }
-
-      const deadline =
-        Date.now() + 60000;
-
-      while (Date.now() < deadline) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, 5000)
-        );
-
-        const status = await fetch(
-          "/api/tesla/vehicle-status",
+      try {
+        const response = await fetch(
+          "/api/tesla/logout",
           {
-            cache: "no-store",
+            method: "POST",
           }
         );
 
-        const next =
-          (await status.json()) as VehiclePayload;
-
-        setData(next);
-
-        if (
-          next.vehicle?.state === "online" &&
-          next.snapshot
-        ) {
-          return;
+        if (!response.ok) {
+          throw new Error("退出失败");
         }
-      }
 
-      setWakeError(
-        "车辆暂未上线，请稍后重试"
-      );
-    } catch (error) {
-      setWakeError(
-        error instanceof Error
-          ? error.message
-          : "唤醒请求失败，请稍后重试。"
-      );
-    } finally {
-      setWaking(false);
-    }
-  }, []);
+        window.location.reload();
+      } catch {
+        setLoggingOut(false);
+
+        window.alert(
+          "退出登录失败，请稍后重试。"
+        );
+      }
+    }, []);
+
+  const wakeUp =
+    useCallback(async () => {
+      setWaking(true);
+      setWakeError(null);
+
+      try {
+        const response = await fetch(
+          "/api/tesla/wake-up",
+          {
+            method: "POST",
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(
+            "唤醒请求失败，请稍后重试。"
+          );
+        }
+
+        const deadline =
+          Date.now() + 60000;
+
+        while (
+          Date.now() < deadline
+        ) {
+          await new Promise(
+            (resolve) =>
+              setTimeout(
+                resolve,
+                5000
+              )
+          );
+
+          const status =
+            await fetch(
+              "/api/tesla/vehicle-status",
+              {
+                cache:
+                  "no-store",
+              }
+            );
+
+          const next =
+            (await status.json()) as VehiclePayload;
+
+          setData(next);
+
+          if (
+            next.vehicle?.state ===
+              "online" &&
+            next.snapshot
+          ) {
+            return;
+          }
+        }
+
+        setWakeError(
+          "车辆暂未上线，请稍后重试"
+        );
+      } catch (error) {
+        setWakeError(
+          error instanceof Error
+            ? error.message
+            : "唤醒请求失败，请稍后重试。"
+        );
+      } finally {
+        setWaking(false);
+      }
+    }, []);
 
   useEffect(() => {
     const modelContext = (
@@ -289,7 +305,9 @@ export default function Dashboard({
       }
     ).modelContext;
 
-    if (!modelContext?.registerTool) {
+    if (
+      !modelContext?.registerTool
+    ) {
       return;
     }
 
@@ -299,18 +317,22 @@ export default function Dashboard({
     void Promise.resolve(
       modelContext.registerTool(
         {
-          name: "refresh_tesla_status",
-          title: "刷新 Tesla 车况",
+          name:
+            "refresh_tesla_status",
+          title:
+            "刷新 Tesla 车况",
           description:
             "读取当前已授权车辆的最新只读状态，并更新页面。",
           inputSchema: {
             type: "object",
             properties: {},
-            additionalProperties: false,
+            additionalProperties:
+              false,
           },
           annotations: {
             readOnlyHint: true,
-            untrustedContentHint: false,
+            untrustedContentHint:
+              false,
           },
           execute: async () => {
             await load();
@@ -321,7 +343,8 @@ export default function Dashboard({
           },
         },
         {
-          signal: controller.signal,
+          signal:
+            controller.signal,
         }
       )
     ).catch(() => undefined);
@@ -330,7 +353,8 @@ export default function Dashboard({
       controller.abort();
   }, [load]);
 
-  const snapshot = data?.snapshot;
+  const snapshot =
+    data?.snapshot;
 
   const chargeLabel = useMemo(
     () =>
@@ -338,11 +362,20 @@ export default function Dashboard({
         {
           Charging: "正在充电",
           Complete: "充电完成",
-          Disconnected: "未连接充电器",
-          NoPower: "已连接 · 无电流",
-          Stopped: "充电已停止",
-        } as Record<string, string>
-      )[snapshot?.chargingState ?? ""] ??
+          Disconnected:
+            "未连接充电器",
+          NoPower:
+            "已连接 · 无电流",
+          Stopped:
+            "充电已停止",
+        } as Record<
+          string,
+          string
+        >
+      )[
+        snapshot?.chargingState ??
+          ""
+      ] ??
       snapshot?.chargingState ??
       "状态未知",
     [snapshot?.chargingState]
@@ -351,13 +384,6 @@ export default function Dashboard({
   const connected =
     Boolean(data?.connected);
 
-  /*
-   * authenticated 来自我们自己的
-   * vehicle-status Session 校验。
-   *
-   * 不再使用 page.tsx 里原来的 signedIn
-   * 作为真实登录判断。
-   */
   const authenticated =
     data?.authenticated === true;
 
@@ -372,7 +398,10 @@ export default function Dashboard({
           <span className="brand-mark">
             T
           </span>
-          <span>TESLA 车况</span>
+
+          <span>
+            TESLA 车况
+          </span>
         </a>
 
         <div className="header-status">
@@ -401,22 +430,31 @@ export default function Dashboard({
           {authenticated && (
             <button
               type="button"
-              onClick={() => void logout()}
-              disabled={loggingOut}
+              onClick={() =>
+                void logout()
+              }
+              disabled={
+                loggingOut
+              }
               title="退出登录"
               aria-label="退出登录"
               style={{
-                display: "inline-flex",
-                alignItems: "center",
+                display:
+                  "inline-flex",
+                alignItems:
+                  "center",
                 gap: "6px",
                 border: "none",
-                background: "transparent",
-                cursor: loggingOut
-                  ? "default"
-                  : "pointer",
-                opacity: loggingOut
-                  ? 0.6
-                  : 1,
+                background:
+                  "transparent",
+                cursor:
+                  loggingOut
+                    ? "default"
+                    : "pointer",
+                opacity:
+                  loggingOut
+                    ? 0.6
+                    : 1,
                 font: "inherit",
               }}
             >
@@ -426,7 +464,9 @@ export default function Dashboard({
                   size={16}
                 />
               ) : (
-                <LogOut size={16} />
+                <LogOut
+                  size={16}
+                />
               )}
 
               <span>
@@ -450,16 +490,19 @@ export default function Dashboard({
             </p>
 
             <h1>
-              {data?.vehicle?.name ??
+              {data?.vehicle
+                ?.name ??
                 "我的 Tesla"}
             </h1>
 
             <p className="vehicle-meta">
               <span>
-                {data?.vehicle?.state ===
+                {data?.vehicle
+                  ?.state ===
                 "online"
                   ? "在线"
-                  : data?.vehicle?.state ??
+                  : data?.vehicle
+                      ?.state ??
                     "尚未授权"}
               </span>
 
@@ -479,7 +522,9 @@ export default function Dashboard({
 
           <button
             className="refresh-button"
-            onClick={() => void load()}
+            onClick={() =>
+              void load()
+            }
             disabled={loading}
           >
             {loading ? (
@@ -488,7 +533,9 @@ export default function Dashboard({
                 size={18}
               />
             ) : (
-              <RefreshCw size={18} />
+              <RefreshCw
+                size={18}
+              />
             )}
 
             {loading
@@ -497,15 +544,22 @@ export default function Dashboard({
           </button>
         </div>
 
+        {/*
+          车辆已经绑定到 Dashboard，
+          但是当前处于 offline / asleep 时，
+          显示手动唤醒按钮。
+        */}
         {!loading &&
-          !connected &&
+          connected &&
           data?.sleeping && (
             <section
               className="setup-panel"
               aria-live="polite"
             >
               <div className="setup-icon">
-                <CarFront size={28} />
+                <CarFront
+                  size={28}
+                />
               </div>
 
               <div className="setup-copy">
@@ -537,7 +591,9 @@ export default function Dashboard({
                       size={18}
                     />
                   ) : (
-                    <Zap size={18} />
+                    <Zap
+                      size={18}
+                    />
                   )}
 
                   {waking
@@ -547,12 +603,18 @@ export default function Dashboard({
               </div>
 
               <div className="privacy-note">
-                <LockKeyhole size={16} />
+                <LockKeyhole
+                  size={16}
+                />
                 仅在你点击后发送唤醒请求
               </div>
             </section>
           )}
 
+        {/*
+          只有真正未连接 / 未登录时，
+          才显示 Tesla 登录入口。
+        */}
         {!loading &&
           !connected &&
           !data?.sleeping && (
@@ -561,7 +623,9 @@ export default function Dashboard({
               aria-live="polite"
             >
               <div className="setup-icon">
-                <CarFront size={28} />
+                <CarFront
+                  size={28}
+                />
               </div>
 
               <div className="setup-copy">
@@ -589,7 +653,11 @@ export default function Dashboard({
                   <div className="config-list">
                     {data.missingConfig.map(
                       (item) => (
-                        <code key={item}>
+                        <code
+                          key={
+                            item
+                          }
+                        >
                           {item}
                         </code>
                       )
@@ -600,16 +668,21 @@ export default function Dashboard({
                     className="connect-button"
                     href="/api/tesla/start"
                   >
-                    使用 Tesla 账户连接
+                    使用 Tesla
+                    账户连接
                     <ChevronRight
-                      size={18}
+                      size={
+                        18
+                      }
                     />
                   </a>
                 )}
               </div>
 
               <div className="privacy-note">
-                <LockKeyhole size={16} />
+                <LockKeyhole
+                  size={16}
+                />
                 只申请车辆状态所需权限
               </div>
             </section>
@@ -650,7 +723,10 @@ export default function Dashboard({
             </div>
 
             <div className="range-row">
-              <span>预计续航</span>
+              <span>
+                预计续航
+              </span>
+
               <strong>
                 {display(
                   snapshot?.batteryRangeKm,
@@ -669,11 +745,13 @@ export default function Dashboard({
               <p className="eyebrow">
                 充电状态
               </p>
+
               <h2>
                 {connected
                   ? chargeLabel
                   : "—"}
               </h2>
+
               <p>
                 {snapshot?.minutesToFullCharge
                   ? `约 ${snapshot.minutesToFullCharge} 分钟充满`
@@ -688,7 +766,10 @@ export default function Dashboard({
                   " km/h"
                 )}
               </span>
-              <small>充电速度</small>
+
+              <small>
+                充电速度
+              </small>
             </div>
           </article>
         </section>
@@ -703,7 +784,9 @@ export default function Dashboard({
         >
           <article className="metric">
             <Gauge />
-            <span>总里程</span>
+            <span>
+              总里程
+            </span>
             <strong>
               {display(
                 snapshot?.odometerKm,
@@ -714,7 +797,9 @@ export default function Dashboard({
 
           <article className="metric">
             <Thermometer />
-            <span>车内 / 车外</span>
+            <span>
+              车内 / 车外
+            </span>
             <strong>
               {display(
                 snapshot?.insideTempC,
@@ -730,9 +815,12 @@ export default function Dashboard({
 
           <article className="metric">
             <LockKeyhole />
-            <span>车辆锁止</span>
+            <span>
+              车辆锁止
+            </span>
             <strong>
-              {snapshot?.locked == null
+              {snapshot?.locked ==
+              null
                 ? "—"
                 : snapshot.locked
                   ? "已锁车"
@@ -742,9 +830,12 @@ export default function Dashboard({
 
           <article className="metric">
             <LocateFixed />
-            <span>车辆位置</span>
+            <span>
+              车辆位置
+            </span>
             <strong>
-              {snapshot?.latitude == null
+              {snapshot?.latitude ==
+              null
                 ? "未授权"
                 : "已获取"}
             </strong>
@@ -758,21 +849,31 @@ export default function Dashboard({
                 <p className="eyebrow">
                   趋势
                 </p>
-                <h2>近期电量</h2>
+
+                <h2>
+                  近期电量
+                </h2>
               </div>
 
-              <Clock3 size={20} />
+              <Clock3
+                size={20}
+              />
             </div>
 
             <Sparkline
               history={
-                data?.history ?? []
+                data?.history ??
+                []
               }
             />
 
             <div className="chart-footer">
-              <span>较早</span>
-              <span>最近</span>
+              <span>
+                较早
+              </span>
+              <span>
+                最近
+              </span>
             </div>
           </article>
 
@@ -782,26 +883,40 @@ export default function Dashboard({
                 <p className="eyebrow">
                   当前状态
                 </p>
-                <h2>快速检查</h2>
+
+                <h2>
+                  快速检查
+                </h2>
               </div>
 
-              <Unplug size={20} />
+              <Unplug
+                size={20}
+              />
             </div>
 
             <ul>
               <li>
-                <span>车辆连接</span>
+                <span>
+                  车辆连接
+                </span>
+
                 <strong>
-                  {data?.vehicle?.state ===
+                  {data?.vehicle
+                    ?.state ===
                   "online"
                     ? "在线"
-                    : data?.vehicle
-                        ?.state ?? "—"}
+                    : data
+                        ?.vehicle
+                        ?.state ??
+                      "—"}
                 </strong>
               </li>
 
               <li>
-                <span>充电连接</span>
+                <span>
+                  充电连接
+                </span>
+
                 <strong>
                   {snapshot?.chargingState ===
                   "Disconnected"
@@ -811,7 +926,10 @@ export default function Dashboard({
               </li>
 
               <li>
-                <span>数据时间</span>
+                <span>
+                  数据时间
+                </span>
+
                 <strong>
                   {snapshot?.capturedAt
                     ? formatter.format(
@@ -831,6 +949,7 @@ export default function Dashboard({
         <span>
           数据来自 Tesla Fleet API
         </span>
+
         <span>
           仅限本人访问 · 令牌安全保存
         </span>
