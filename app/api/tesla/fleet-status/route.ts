@@ -1,187 +1,205 @@
-import {
-  NextRequest,
-  NextResponse,
-} from "next/server";
+import { neon } from "@neondatabase/serverless";
 
-import crypto from "crypto";
+const TESLA_AUTH_URL =
+  "https://auth.tesla.cn/oauth2/v3/token";
 
-/*
- * 验证 Dashboard Session。
- *
- * 签名规则与 vehicle-status / wake-up
- * 保持完全一致。
- */
-function isValidDashboardSession(
-  sessionValue: string | undefined
+const TESLA_API =
+  "https://fleet-api.prd.cn.vn.cloud.tesla.cn";
+
+async function refreshTeslaToken(
+  sql,
+  refreshToken
 ) {
-  const secret =
-    process.env.DASHBOARD_SESSION_SECRET;
+  const response = await fetch(
+    TESLA_AUTH_URL,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type":
+          "application/x-www-form-urlencoded"
+      },
+      body: new URLSearchParams({
+        grant_type: "refresh_token",
+        client_id:
+          process.env.TESLA_CLIENT_ID,
+        refresh_token: refreshToken
+      })
+    }
+  );
 
-  if (!secret || !sessionValue) {
-    return false;
-  }
+  const data = await response.json();
 
-  const [expiresAtString, signature] =
-    sessionValue.split(".");
-
-  if (
-    !expiresAtString ||
-    !signature
-  ) {
-    return false;
+  if (!response.ok) {
+    throw new Error(
+      `Tesla token refresh failed: ${
+        data.error || response.status
+      }`
+    );
   }
 
   const expiresAt =
-    Number(expiresAtString);
+    Date.now() +
+    Number(data.expires_in) * 1000;
 
-  if (
-    !Number.isFinite(expiresAt) ||
-    Date.now() >= expiresAt
-  ) {
-    return false;
-  }
+  await sql`
+    UPDATE tesla_tokens
+    SET
+      access_token = ${data.access_token},
+      refresh_token = ${data.refresh_token},
+      expires_at = ${expiresAt},
+      updated_at = NOW()
+    WHERE id = 1
+  `;
 
-  const payload =
-    `tesla-dashboard:${expiresAtString}`;
-
-  const expectedSignature =
-    crypto
-      .createHmac(
-        "sha256",
-        secret
-      )
-      .update(payload)
-      .digest("hex");
-
-  if (
-    signature.length !==
-    expectedSignature.length
-  ) {
-    return false;
-  }
-
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(
-        signature,
-        "utf8"
-      ),
-      Buffer.from(
-        expectedSignature,
-        "utf8"
-      )
-    );
-  } catch {
-    return false;
-  }
+  return data.access_token;
 }
 
-export async function GET(
-  request: NextRequest
+export default async function handler(
+  req,
+  res
 ) {
   /*
-   * 第一层：
-   * 只有已经通过 Tesla 登录的浏览器
-   * 才能访问这个诊断接口。
+   * 这个接口仅用于内部诊断。
+   * 浏览器不能直接调用。
    */
-  const session =
-    request.cookies.get(
-      "tesla_dashboard_session"
-    )?.value;
+  const providedSecret =
+    req.headers["x-internal-api-secret"];
 
   if (
-    !isValidDashboardSession(
-      session
-    )
+    !process.env.INTERNAL_API_SECRET ||
+    providedSecret !==
+      process.env.INTERNAL_API_SECRET
   ) {
-    return NextResponse.json(
-      {
-        success: false,
-        authenticated: false,
-        error: "Unauthorized",
-      },
-      {
-        status: 401,
-      }
-    );
-  }
-
-  /*
-   * 第二层：
-   * INTERNAL_API_SECRET
-   * 只在 Vercel Server 内部使用。
-   */
-  const internalApiSecret =
-    process.env.INTERNAL_API_SECRET;
-
-  if (!internalApiSecret) {
-    console.error(
-      "INTERNAL_API_SECRET is not configured"
-    );
-
-    return NextResponse.json(
-      {
-        success: false,
-        authenticated: true,
-        error:
-          "Server configuration error",
-      },
-      {
-        status: 500,
-      }
-    );
+    return res.status(401).json({
+      success: false,
+      error: "Unauthorized"
+    });
   }
 
   try {
+    const sql = neon(
+      process.env.DATABASE_URL
+    );
+
     /*
-     * 注意：
-     * 这里调用的是 fleet-status。
+     * 读取 Tesla Token
+     */
+    const rows = await sql`
+      SELECT
+        access_token,
+        refresh_token,
+        expires_at
+      FROM tesla_tokens
+      WHERE id = 1
+    `;
+
+    if (rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error:
+          "Tesla account not connected"
+      });
+    }
+
+    let {
+      access_token,
+      refresh_token,
+      expires_at
+    } = rows[0];
+
+    /*
+     * Token 即将过期则自动刷新。
+     */
+    if (
+      Date.now() >=
+      Number(expires_at) - 60 * 1000
+    ) {
+      access_token =
+        await refreshTeslaToken(
+          sql,
+          refresh_token
+        );
+    }
+
+    /*
+     * Tesla 官方 fleet_status：
      *
-     * 不要改成 vehicle-status。
+     * POST /api/1/vehicles/fleet_status
+     *
+     * 注意：
+     * 这里必须是 POST，不是 GET。
      */
     const response = await fetch(
-      "https://api.ffiww.com/api/tesla/fleet-status",
+      `${TESLA_API}/api/1/vehicles/fleet_status`,
       {
-        method: "GET",
-
+        method: "POST",
         headers: {
-          "x-internal-api-secret":
-            internalApiSecret,
-        },
-
-        cache: "no-store",
+          Authorization:
+            `Bearer ${access_token}`,
+          "Content-Type":
+            "application/json"
+        }
       }
     );
 
-    const data =
-      await response.json();
+    /*
+     * Tesla 正常情况下返回 JSON。
+     * 这里先读取 text，再尝试解析，
+     * 可以避免异常响应导致二次报错。
+     */
+    const responseText =
+      await response.text();
 
-    return NextResponse.json(
-      {
-        ...data,
-        authenticated: true,
-      },
-      {
-        status:
-          response.status,
-      }
-    );
+    let data;
+
+    try {
+      data =
+        responseText
+          ? JSON.parse(responseText)
+          : null;
+    } catch {
+      data = {
+        rawResponse:
+          responseText
+      };
+    }
+
+    if (!response.ok) {
+      return res
+        .status(response.status)
+        .json({
+          success: false,
+          status: response.status,
+          error: data
+        });
+    }
+
+    /*
+     * 只返回 Fleet Status。
+     *
+     * 不返回：
+     * - Access Token
+     * - Refresh Token
+     * - INTERNAL_API_SECRET
+     * - DATABASE_URL
+     */
+    return res.status(200).json({
+      success: true,
+      fleetStatus: data
+    });
+
   } catch (error) {
     console.error(
-      "Tesla fleet-status proxy error:",
+      "Tesla fleet-status error:",
       error
     );
 
-    return NextResponse.json(
-      {
-        success: false,
-        authenticated: true,
-        error:
-          "Fleet Status 查询失败，请稍后重试。",
-      },
-      {
-        status: 502,
-      }
-    );
+    return res.status(500).json({
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error"
+    });
   }
 }
