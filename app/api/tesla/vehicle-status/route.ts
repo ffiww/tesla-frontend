@@ -2,11 +2,28 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
+    const internalApiSecret = process.env.INTERNAL_API_SECRET;
+
+    if (!internalApiSecret) {
+      console.error("INTERNAL_API_SECRET is not configured");
+
+      return NextResponse.json(
+        {
+          connected: false,
+          error: "服务器配置错误",
+        },
+        { status: 500 },
+      );
+    }
+
     const response = await fetch(
       "https://api.ffiww.com/api/tesla/vehicle-status",
       {
         method: "GET",
         cache: "no-store",
+        headers: {
+          "x-internal-api-secret": internalApiSecret,
+        },
       },
     );
 
