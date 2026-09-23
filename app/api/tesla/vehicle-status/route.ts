@@ -1,38 +1,38 @@
-import { NextRequest, NextResponse } from "next/server";
+import {
+  NextRequest,
+  NextResponse,
+} from "next/server";
+
 import crypto from "crypto";
 
+/*
+ * 验证 Dashboard Session。
+ *
+ * 签名规则必须和我们现有的
+ * vehicle-status / wake-up 保持一致。
+ */
 function isValidDashboardSession(
-  sessionValue: string | undefined,
-): boolean {
-  if (!sessionValue) {
+  sessionValue: string | undefined
+) {
+  const secret =
+    process.env.DASHBOARD_SESSION_SECRET;
+
+  if (!secret || !sessionValue) {
     return false;
   }
 
-  const secret = process.env.DASHBOARD_SESSION_SECRET;
+  const [expiresAtString, signature] =
+    sessionValue.split(".");
 
-  if (!secret) {
-    console.error(
-      "DASHBOARD_SESSION_SECRET is not configured",
-    );
+  if (
+    !expiresAtString ||
+    !signature
+  ) {
     return false;
   }
 
-  const separatorIndex = sessionValue.indexOf(".");
-
-  if (separatorIndex === -1) {
-    return false;
-  }
-
-  const expiresAtString = sessionValue.slice(
-    0,
-    separatorIndex,
-  );
-
-  const providedSignature = sessionValue.slice(
-    separatorIndex + 1,
-  );
-
-  const expiresAt = Number(expiresAtString);
+  const expiresAt =
+    Number(expiresAtString);
 
   if (
     !Number.isFinite(expiresAt) ||
@@ -44,140 +44,147 @@ function isValidDashboardSession(
   const payload =
     `tesla-dashboard:${expiresAtString}`;
 
-  const expectedSignature = crypto
-    .createHmac("sha256", secret)
-    .update(payload)
-    .digest("hex");
+  const expectedSignature =
+    crypto
+      .createHmac(
+        "sha256",
+        secret
+      )
+      .update(payload)
+      .digest("hex");
+
+  if (
+    signature.length !==
+    expectedSignature.length
+  ) {
+    return false;
+  }
 
   try {
-    const providedBuffer = Buffer.from(
-      providedSignature,
-      "hex",
-    );
-
-    const expectedBuffer = Buffer.from(
-      expectedSignature,
-      "hex",
-    );
-
-    if (
-      providedBuffer.length !== expectedBuffer.length
-    ) {
-      return false;
-    }
-
     return crypto.timingSafeEqual(
-      providedBuffer,
-      expectedBuffer,
+      Buffer.from(
+        signature,
+        "utf8"
+      ),
+      Buffer.from(
+        expectedSignature,
+        "utf8"
+      )
     );
   } catch {
     return false;
   }
 }
 
-export async function GET(request: NextRequest) {
-  try {
-    // 1. 检查当前浏览器是否已经通过 Tesla 登录
-    const sessionValue =
-      request.cookies.get(
-        "tesla_dashboard_session",
-      )?.value;
+export async function GET(
+  request: NextRequest
+) {
+  /*
+   * 第一层安全检查：
+   * 浏览器必须拥有有效的
+   * Dashboard Session。
+   */
+  const session =
+    request.cookies.get(
+      "tesla_dashboard_session"
+    )?.value;
 
-    if (!isValidDashboardSession(sessionValue)) {
-      return NextResponse.json(
-        {
-          connected: false,
-          authenticated: false,
-          error: "Unauthorized",
-        },
-        { status: 401 },
-      );
-    }
-
-    // 2. Session 合法后，才允许服务器访问 Tesla 后端
-    const internalApiSecret =
-      process.env.INTERNAL_API_SECRET;
-
-    if (!internalApiSecret) {
-      console.error(
-        "INTERNAL_API_SECRET is not configured",
-      );
-
-      return NextResponse.json(
-        {
-          connected: false,
-          error: "服务器配置错误",
-        },
-        { status: 500 },
-      );
-    }
-
-    const response = await fetch(
-      "https://api.ffiww.com/api/tesla/vehicle-status",
+  if (
+    !isValidDashboardSession(
+      session
+    )
+  ) {
+    return NextResponse.json(
       {
-        method: "GET",
-        cache: "no-store",
-        headers: {
-          "x-internal-api-secret":
-            internalApiSecret,
-        },
+        success: false,
+        authenticated: false,
+        error: "Unauthorized",
       },
+      {
+        status: 401,
+      }
     );
+  }
 
-    const data = await response.json();
+  /*
+   * 第二层：
+   * INTERNAL_API_SECRET
+   * 只在 Vercel 服务器内部读取。
+   *
+   * 浏览器永远不会看到它。
+   */
+  const internalApiSecret =
+    process.env.INTERNAL_API_SECRET;
 
-    if (!response.ok) {
-      return NextResponse.json(
-        {
-          connected: false,
-          error:
-            data?.error ||
-            "读取 Tesla 数据失败",
-        },
-        { status: response.status },
-      );
-    }
-
-    const vehicle = data?.vehicle;
-
-    if (!vehicle) {
-      return NextResponse.json(
-        {
-          connected: false,
-          error:
-            "Tesla 账户下没有可访问的车辆。",
-        },
-        { status: 404 },
-      );
-    }
-
-    return NextResponse.json({
-      connected: data?.connected ?? true,
-      authenticated: true,
-      vehicle,
-      snapshot: data?.snapshot ?? null,
-      history: [],
-      sleeping: Boolean(data?.sleeping),
-      realtimeUnavailable: Boolean(
-        data?.realtimeUnavailable,
-      ),
-    });
-
-  } catch (error) {
+  if (!internalApiSecret) {
     console.error(
-      "Tesla vehicle-status proxy error:",
-      error,
+      "INTERNAL_API_SECRET is not configured"
     );
 
     return NextResponse.json(
       {
-        connected: false,
+        success: false,
         error:
-          error instanceof Error
-            ? error.message
-            : "读取 Tesla 数据失败",
+          "Server configuration error",
       },
-      { status: 502 },
+      {
+        status: 500,
+      }
+    );
+  }
+
+  try {
+    /*
+     * 调用我们刚刚建立的
+     * tesla-api fleet-status 接口。
+     */
+    const response = await fetch(
+      "https://api.ffiww.com/api/tesla/fleet-status",
+      {
+        method: "GET",
+
+        headers: {
+          "x-internal-api-secret":
+            internalApiSecret,
+        },
+
+        cache: "no-store",
+      }
+    );
+
+    const data =
+      await response.json();
+
+    /*
+     * 原样返回 Tesla API 的诊断结果。
+     *
+     * 后端接口本身不会返回
+     * Tesla Access Token、
+     * Refresh Token 或 Internal Secret。
+     */
+    return NextResponse.json(
+      data,
+      {
+        status:
+          response.status,
+      }
+    );
+  } catch (error) {
+    console.error(
+      "Tesla fleet-status proxy error:",
+      error
+    );
+
+    return NextResponse.json(
+      {
+        success: false,
+        authenticated: true,
+        error:
+          "Fleet Status 查询失败，请稍后重试。",
+      },
+      {
+        status: 502,
+      }
     );
   }
 }
