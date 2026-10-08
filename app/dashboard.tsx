@@ -1,5 +1,7 @@
 "use client";
 
+import DriveHistory from "./drive-history";
+
 import {
   BatteryCharging,
   CarFront,
@@ -943,6 +945,8 @@ export default function Dashboard({
             </ul>
           </article>
         </section>
+        <DriveHistory />
+
       </section>
 
       <footer>
