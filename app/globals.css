@@ -40,3 +40,23 @@
 .drive-extra-metrics{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 13px}
 .drive-extra-metrics span{display:flex;align-items:center;gap:5px;padding:8px 11px;border:1px solid #e8eaed;border-radius:999px;color:#777b82;font-size:.77rem;background:#fafafa}
 .drive-extra-metrics strong{color:#25282d;font-size:.8rem}
+
+.energy-history-card{min-width:0}
+.energy-history-tabs,.drive-trend-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:16px 0 5px}
+.energy-history-tabs button,.drive-trend-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid #e5e7ea;border-radius:999px;background:#fff;color:#6f737a;font:inherit;font-size:.78rem;cursor:pointer}
+.energy-history-tabs button.active,.drive-trend-tabs button.active{border-color:#e82127;background:#fff4f4;color:#c91d24}
+.energy-history-chart{height:190px;position:relative;margin-top:8px}
+.energy-chart-legend{display:flex;gap:16px;align-items:center;color:#777b82;font-size:.74rem;margin:2px 0 0 38px}
+.energy-chart-legend span{display:inline-flex;align-items:center;gap:6px}
+.energy-chart-legend i{width:14px;height:3px;background:#e82127;border-radius:9px}
+.energy-chart-legend .legend-soc{background:#3186c8}
+.energy-history-empty{min-height:180px;display:flex;align-items:center;justify-content:center;padding:20px;border:1px dashed #dfe1e5;border-radius:14px;background:#f8f9fa;color:#81858c;text-align:center;font-size:.86rem;line-height:1.55}
+.energy-history-note{margin:6px 0 0;color:#898d93;font-size:.72rem;line-height:1.4}
+.drive-trend-card{margin-top:18px;padding-top:18px;border-top:1px solid #e9eaed}
+.drive-detail-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.drive-detail-heading h3{margin:0;font-size:1rem}
+.drive-detail-heading .eyebrow{margin-bottom:5px}
+.drive-trend-tabs{margin:0}
+.drive-trend-tabs button{padding:7px 10px;font-size:.73rem}
+.drive-chart{height:245px;margin-top:10px}
+@media(max-width:540px){.energy-history-chart{height:175px}.drive-detail-heading{align-items:flex-start;flex-direction:column}.drive-chart{height:210px}}
