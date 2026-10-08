@@ -35,6 +35,7 @@ type DriveRouteResponse = {
 };
 
 const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
+  year: "numeric",
   month: "2-digit",
   day: "2-digit",
   hour: "2-digit",
@@ -96,20 +97,25 @@ function RouteSketch({ points }: { points: Position[] }) {
   const maxX = Math.max(...projected.map((point) => point.x));
   const minY = Math.min(...projected.map((point) => point.y));
   const maxY = Math.max(...projected.map((point) => point.y));
-  const spanX = Math.max(maxX - minX, 0.000001);
-  const spanY = Math.max(maxY - minY, 0.000001);
+  const rawSpanX = maxX - minX;
+  const rawSpanY = maxY - minY;
+  const spanX = Math.max(rawSpanX, 0.000001);
+  const spanY = Math.max(rawSpanY, 0.000001);
   const padding = 28;
   const width = 720;
   const height = 340;
+  const scale = Math.min(
+    (width - padding * 2) / spanX,
+    (height - padding * 2) / spanY
+  );
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
 
   const pathPoints = projected.map((point) => {
     const x =
-      padding +
-      ((point.x - minX) / spanX) * (width - padding * 2);
+      width / 2 + (point.x - centerX) * scale;
     const y =
-      height -
-      padding -
-      ((point.y - minY) / spanY) * (height - padding * 2);
+      height / 2 - (point.y - centerY) * scale;
 
     return { x, y };
   });
@@ -339,6 +345,27 @@ export default function DriveHistory() {
                   <small>
                     平均 {numberLabel(selectedDrive.average_speed_kmh, 0)} km/h
                   </small>
+                </div>
+
+                <div className="drive-extra-metrics">
+                  <span>
+                    耗电{" "}
+                    <strong>
+                      {numberLabel(selectedDrive.energy_used_kwh, 2)} kWh
+                    </strong>
+                  </span>
+                  <span>
+                    能耗效率{" "}
+                    <strong>
+                      {numberLabel(selectedDrive.efficiency_wh_km, 0)} Wh/km
+                    </strong>
+                  </span>
+                  <span>
+                    最高速度{" "}
+                    <strong>
+                      {numberLabel(selectedDrive.max_speed_kmh, 0)} km/h
+                    </strong>
+                  </span>
                 </div>
 
                 {loadingRoute ? (
