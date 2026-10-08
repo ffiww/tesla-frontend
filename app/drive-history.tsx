@@ -96,7 +96,7 @@ type AMapApi = {
   convertFrom: (
     points: Array<[number, number]>,
     source: "gps",
-    callback: (status: string, result: { info?: string; locations?: AMapLocation[] }) => void
+    callback: (status: string, result: { info?: string; infocode?: string; locations?: AMapLocation[] }) => void
   ) => void;
 };
 
@@ -151,8 +151,17 @@ function convertGpsBatch(
 ): Promise<AMapLocation[]> {
   return new Promise((resolve, reject) => {
     AMap.convertFrom(batch, "gps", (status, result) => {
-      if (status !== "complete" || result.info !== "ok" || !result.locations) {
-        reject(new Error("高德 GPS 坐标转换失败"));
+      if (status !== "complete" || result?.info !== "ok" || !result.locations?.length) {
+        const details = [status, result?.info, result?.infocode]
+          .filter(Boolean)
+          .join(" / ");
+        reject(
+          new Error(
+            details
+              ? `高德 GPS 坐标转换失败（${details}）`
+              : "高德 GPS 坐标转换失败，未返回错误详情"
+          )
+        );
         return;
       }
       resolve(result.locations);
