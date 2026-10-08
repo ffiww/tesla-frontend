@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const response = await fetch(
-      "https://api.ffiww.com/api/tesla/energy-history",
+      "https://api.ffiww.com/api/tesla/drive-history?view=energy",
       {
         method: "GET",
         headers: { "x-internal-api-secret": internalApiSecret },
