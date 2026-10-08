@@ -173,12 +173,22 @@ async function convertGpsPoints(
   AMap: AMapApi,
   points: Position[]
 ): Promise<AMapLocation[]> {
-  const converted: AMapLocation[] = [];
+  const batches: Array<Array<[number, number]>> = [];
   for (let index = 0; index < points.length; index += 40) {
-    const batch = points.slice(index, index + 40).map(
-      (point) => [point.longitude, point.latitude] as [number, number]
+    batches.push(
+      points.slice(index, index + 40).map(
+        (point) => [point.longitude, point.latitude] as [number, number]
+      )
     );
-    converted.push(...(await convertGpsBatch(AMap, batch)));
+  }
+
+  // Convert a few batches concurrently, preserving original point order.
+  const converted: AMapLocation[] = [];
+  for (let index = 0; index < batches.length; index += 3) {
+    const convertedBatches = await Promise.all(
+      batches.slice(index, index + 3).map((batch) => convertGpsBatch(AMap, batch))
+    );
+    converted.push(...convertedBatches.flat());
   }
   return converted;
 }
@@ -217,6 +227,16 @@ function RouteMap({ points }: { points: Position[] }) {
 
     void loadAMap()
       .then(async (AMap) => {
+        if (!active) return;
+
+        // Show the basemap while coordinate conversion runs.
+        map = new AMap.Map(container, {
+          center: [sampled[0].longitude, sampled[0].latitude],
+          zoom: 13,
+          viewMode: "2D",
+          resizeEnable: true,
+        });
+
         const converted = await convertGpsPoints(AMap, sampled);
         if (!active) return;
         if (converted.length === 0) throw new Error("高德没有返回可用坐标");
@@ -229,11 +249,6 @@ function RouteMap({ points }: { points: Position[] }) {
           throw new Error("高德返回了无效的转换坐标");
         }
 
-        map = new AMap.Map(container, {
-          zoom: 12,
-          viewMode: "2D",
-          resizeEnable: true,
-        });
         const line = new AMap.Polyline({
           path,
           strokeColor: "#e82127",
