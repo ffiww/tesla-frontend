@@ -1,6 +1,7 @@
 "use client";
 
 import DriveHistory from "./drive-history";
+import EnergyHistory from "./energy-history";
 
 import {
   BatteryCharging,
@@ -845,39 +846,7 @@ export default function Dashboard({
         </section>
 
         <section className="lower-grid">
-          <article className="trend-card">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">
-                  趋势
-                </p>
-
-                <h2>
-                  近期电量
-                </h2>
-              </div>
-
-              <Clock3
-                size={20}
-              />
-            </div>
-
-            <Sparkline
-              history={
-                data?.history ??
-                []
-              }
-            />
-
-            <div className="chart-footer">
-              <span>
-                较早
-              </span>
-              <span>
-                最近
-              </span>
-            </div>
-          </article>
+          <EnergyHistory />
 
           <article className="facts-card">
             <div className="section-heading">
