@@ -73,9 +73,24 @@ async function proxyAMapService(request: NextRequest, path: string[]) {
   });
   target.searchParams.set("jscode", securityCode);
 
+  let forwardedReferer = `${request.nextUrl.origin}/`;
+  const incomingReferer = request.headers.get("referer");
+  if (incomingReferer) {
+    try {
+      const refererUrl = new URL(incomingReferer);
+      forwardedReferer =
+        refererUrl.origin === request.nextUrl.origin
+          ? `${refererUrl.origin}/`
+          : "";
+    } catch {
+      forwardedReferer = "";
+    }
+  }
+
   try {
     const upstream = await fetch(target, {
       method: "GET",
+      headers: forwardedReferer ? { referer: forwardedReferer } : undefined,
       cache: "no-store",
       redirect: "manual",
     });
