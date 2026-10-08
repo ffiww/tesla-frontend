@@ -36,3 +36,7 @@
 .drive-history-error{padding:10px 13px;border-radius:10px;background:#fff0f0;color:#b81c21;font-size:.88rem}
 @media(max-width:820px){.drive-history-layout{grid-template-columns:1fr}.drive-list{flex-direction:row;max-height:none;overflow-x:auto;padding-bottom:4px}.drive-list-item{min-width:180px}.route-sketch{min-height:180px}}
 @media(max-width:540px){.drive-history-card{padding:20px;border-radius:18px}.drive-route-summary{flex-direction:column}.route-legend{gap:10px;flex-wrap:wrap}.route-sketch{min-height:150px}}
+
+.drive-extra-metrics{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 13px}
+.drive-extra-metrics span{display:flex;align-items:center;gap:5px;padding:8px 11px;border:1px solid #e8eaed;border-radius:999px;color:#777b82;font-size:.77rem;background:#fafafa}
+.drive-extra-metrics strong{color:#25282d;font-size:.8rem}
