@@ -190,7 +190,7 @@ function RouteMap({ points }: { points: Position[] }) {
     if (!containerRef.current || valid.length === 0) return;
 
     let active = true;
-    let map: ReturnType<AMapApi["Map"]> | null = null;
+    let map: InstanceType<AMapApi["Map"]> | null = null;
     setMapError(null);
 
     const sampled =
