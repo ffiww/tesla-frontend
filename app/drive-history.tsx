@@ -177,6 +177,7 @@ async function convertGpsPoints(
 function RouteMap({ points }: { points: Position[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState<string | null>(null);
+  const [mapLoading, setMapLoading] = useState(false);
 
   useEffect(() => {
     const valid = points.filter(
@@ -187,11 +188,16 @@ function RouteMap({ points }: { points: Position[] }) {
         Math.abs(point.longitude) <= 180
     );
 
-    if (!containerRef.current || valid.length === 0) return;
+    const container = containerRef.current;
+    if (!container || valid.length === 0) {
+      setMapLoading(false);
+      return;
+    }
 
     let active = true;
     let map: InstanceType<AMapApi["Map"]> | null = null;
     setMapError(null);
+    setMapLoading(true);
 
     const sampled =
       valid.length <= 500
@@ -203,7 +209,8 @@ function RouteMap({ points }: { points: Position[] }) {
     void loadAMap()
       .then(async (AMap) => {
         const converted = await convertGpsPoints(AMap, sampled);
-        if (!active || !containerRef.current || converted.length === 0) return;
+        if (!active) return;
+        if (converted.length === 0) throw new Error("高德没有返回可用坐标");
 
         const path = converted.map((location) => [
           typeof location.getLng === "function" ? location.getLng() : location.lng!,
@@ -213,7 +220,7 @@ function RouteMap({ points }: { points: Position[] }) {
           throw new Error("高德返回了无效的转换坐标");
         }
 
-        map = new AMap.Map(containerRef.current, {
+        map = new AMap.Map(container, {
           zoom: 12,
           viewMode: "2D",
           resizeEnable: true,
@@ -240,9 +247,11 @@ function RouteMap({ points }: { points: Position[] }) {
         const overlays = [line, start, finish];
         map.add(overlays);
         map.setFitView(overlays, false, [48, 48, 48, 48]);
+        setMapLoading(false);
       })
       .catch((error) => {
         if (active) {
+          setMapLoading(false);
           setMapError(error instanceof Error ? error.message : "地图加载失败");
         }
       });
@@ -273,6 +282,7 @@ function RouteMap({ points }: { points: Position[] }) {
   return (
     <div className="amap-route-wrap">
       <div ref={containerRef} className="amap-route-map" aria-label="高德地图行程轨迹" />
+      {mapLoading && <div className="amap-route-error">正在加载高德地图和轨迹…</div>}
       {mapError && <div className="amap-route-error">{mapError}</div>}
       <div className="route-legend">
         <span><i className="route-start-dot" />起点</span>
