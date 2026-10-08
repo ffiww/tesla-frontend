@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, Route } from "lucide-react";
 import {
   CartesianGrid,
@@ -78,14 +78,190 @@ function durationLabel(start: string, end: string | null) {
     : `${restMinutes}分钟`;
 }
 
-function RouteSketch({ points }: { points: Position[] }) {
-  const valid = points.filter(
+type AMapLocation = {
+  getLng?: () => number;
+  getLat?: () => number;
+  lng?: number;
+  lat?: number;
+};
+
+type AMapApi = {
+  Map: new (container: HTMLElement, options: Record<string, unknown>) => {
+    add: (overlays: unknown | unknown[]) => void;
+    setFitView: (overlays?: unknown[], immediately?: boolean, padding?: number[]) => void;
+    destroy: () => void;
+  };
+  Polyline: new (options: Record<string, unknown>) => unknown;
+  Marker: new (options: Record<string, unknown>) => unknown;
+  convertFrom: (
+    points: Array<[number, number]>,
+    source: "gps",
+    callback: (status: string, result: { info?: string; locations?: AMapLocation[] }) => void
+  ) => void;
+};
+
+declare global {
+  interface Window {
+    AMap?: AMapApi;
+    _AMapSecurityConfig?: { serviceHost: string };
+    __teslaAmapScriptPromise?: Promise<AMapApi>;
+  }
+}
+
+function loadAMap(): Promise<AMapApi> {
+  if (window.AMap) return Promise.resolve(window.AMap);
+  if (window.__teslaAmapScriptPromise) return window.__teslaAmapScriptPromise;
+
+  const key = process.env.NEXT_PUBLIC_AMAP_KEY;
+  if (!key) return Promise.reject(new Error("尚未配置高德地图 Web JS API Key"));
+
+  window._AMapSecurityConfig = {
+    serviceHost: `${window.location.origin}/api/tesla/energy-history/_AMapService`,
+  };
+
+  window.__teslaAmapScriptPromise = new Promise<AMapApi>((resolve, reject) => {
+    const existing = document.getElementById("amap-js-sdk") as HTMLScriptElement | null;
+    const script = existing ?? document.createElement("script");
+    const onLoad = () => {
+      if (window.AMap) resolve(window.AMap);
+      else reject(new Error("高德地图脚本已加载，但地图 SDK 不可用"));
+    };
+    const onError = () => {
+      script.remove();
+      window.__teslaAmapScriptPromise = undefined;
+      reject(new Error("高德地图加载失败，请检查 Key 和域名白名单"));
+    };
+
+    script.addEventListener("load", onLoad, { once: true });
+    script.addEventListener("error", onError, { once: true });
+    if (!existing) {
+      script.id = "amap-js-sdk";
+      script.async = true;
+      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key)}`;
+      document.head.appendChild(script);
+    }
+  });
+
+  return window.__teslaAmapScriptPromise;
+}
+
+function convertGpsBatch(
+  AMap: AMapApi,
+  batch: Array<[number, number]>
+): Promise<AMapLocation[]> {
+  return new Promise((resolve, reject) => {
+    AMap.convertFrom(batch, "gps", (status, result) => {
+      if (status !== "complete" || result.info !== "ok" || !result.locations) {
+        reject(new Error("高德 GPS 坐标转换失败"));
+        return;
+      }
+      resolve(result.locations);
+    });
+  });
+}
+
+async function convertGpsPoints(
+  AMap: AMapApi,
+  points: Position[]
+): Promise<AMapLocation[]> {
+  const converted: AMapLocation[] = [];
+  for (let index = 0; index < points.length; index += 40) {
+    const batch = points.slice(index, index + 40).map(
+      (point) => [point.longitude, point.latitude] as [number, number]
+    );
+    converted.push(...(await convertGpsBatch(AMap, batch)));
+  }
+  return converted;
+}
+
+function RouteMap({ points }: { points: Position[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const valid = points.filter(
+      (point) =>
+        Number.isFinite(point.latitude) &&
+        Number.isFinite(point.longitude) &&
+        Math.abs(point.latitude) <= 90 &&
+        Math.abs(point.longitude) <= 180
+    );
+
+    if (!containerRef.current || valid.length === 0) return;
+
+    let active = true;
+    let map: ReturnType<AMapApi["Map"]> | null = null;
+    setMapError(null);
+
+    const sampled =
+      valid.length <= 500
+        ? valid
+        : Array.from({ length: 500 }, (_, index) =>
+            valid[Math.round((index * (valid.length - 1)) / 499)]
+          );
+
+    void loadAMap()
+      .then(async (AMap) => {
+        const converted = await convertGpsPoints(AMap, sampled);
+        if (!active || !containerRef.current || converted.length === 0) return;
+
+        const path = converted.map((location) => [
+          typeof location.getLng === "function" ? location.getLng() : location.lng!,
+          typeof location.getLat === "function" ? location.getLat() : location.lat!,
+        ]);
+        if (path.some(([lng, lat]) => !Number.isFinite(lng) || !Number.isFinite(lat))) {
+          throw new Error("高德返回了无效的转换坐标");
+        }
+
+        map = new AMap.Map(containerRef.current, {
+          zoom: 12,
+          viewMode: "2D",
+          resizeEnable: true,
+        });
+        const line = new AMap.Polyline({
+          path,
+          strokeColor: "#e82127",
+          strokeWeight: 5,
+          strokeOpacity: 0.9,
+          lineJoin: "round",
+          lineCap: "round",
+          showDir: true,
+        });
+        const start = new AMap.Marker({
+          position: path[0],
+          title: "行程起点",
+          label: { content: "起点", direction: "top" },
+        });
+        const finish = new AMap.Marker({
+          position: path[path.length - 1],
+          title: "行程终点",
+          label: { content: "终点", direction: "top" },
+        });
+        const overlays = [line, start, finish];
+        map.add(overlays);
+        map.setFitView(overlays, false, [48, 48, 48, 48]);
+      })
+      .catch((error) => {
+        if (active) {
+          setMapError(error instanceof Error ? error.message : "地图加载失败");
+        }
+      });
+
+    return () => {
+      active = false;
+      map?.destroy();
+    };
+  }, [points]);
+
+  const validCount = points.filter(
     (point) =>
       Number.isFinite(point.latitude) &&
-      Number.isFinite(point.longitude)
-  );
+      Number.isFinite(point.longitude) &&
+      Math.abs(point.latitude) <= 90 &&
+      Math.abs(point.longitude) <= 180
+  ).length;
 
-  if (valid.length === 0) {
+  if (validCount === 0) {
     return (
       <div className="route-empty">
         <Route size={22} />
@@ -94,120 +270,18 @@ function RouteSketch({ points }: { points: Position[] }) {
     );
   }
 
-  const latitudeCenter =
-    valid.reduce((sum, point) => sum + point.latitude, 0) /
-    valid.length;
-  const longitudeScale = Math.cos(
-    (latitudeCenter * Math.PI) / 180
-  );
-
-  const projected = valid.map((point) => ({
-    x: point.longitude * longitudeScale,
-    y: point.latitude,
-  }));
-
-  const minX = Math.min(...projected.map((point) => point.x));
-  const maxX = Math.max(...projected.map((point) => point.x));
-  const minY = Math.min(...projected.map((point) => point.y));
-  const maxY = Math.max(...projected.map((point) => point.y));
-  const rawSpanX = maxX - minX;
-  const rawSpanY = maxY - minY;
-  const spanX = Math.max(rawSpanX, 0.000001);
-  const spanY = Math.max(rawSpanY, 0.000001);
-  const padding = 28;
-  const width = 720;
-  const height = 340;
-  const scale = Math.min(
-    (width - padding * 2) / spanX,
-    (height - padding * 2) / spanY
-  );
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
-
-  const pathPoints = projected.map((point) => {
-    const x =
-      width / 2 + (point.x - centerX) * scale;
-    const y =
-      height / 2 - (point.y - centerY) * scale;
-
-    return { x, y };
-  });
-
-  const polyline = pathPoints
-    .map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`)
-    .join(" ");
-
-  const start = pathPoints[0];
-  const end = pathPoints[pathPoints.length - 1];
-
   return (
-    <div className="route-sketch-wrap">
-      <svg
-        className="route-sketch"
-        viewBox={`0 0 ${width} ${height}`}
-        role="img"
-        aria-label="本次行程位置轨迹示意图"
-      >
-        <defs>
-          <pattern
-            id="routeGrid"
-            width="32"
-            height="32"
-            patternUnits="userSpaceOnUse"
-          >
-            <path
-              d="M 32 0 L 0 0 0 32"
-              fill="none"
-              stroke="#e4e6e9"
-              strokeWidth="1"
-            />
-          </pattern>
-        </defs>
-        <rect
-          width={width}
-          height={height}
-          fill="url(#routeGrid)"
-          rx="16"
-        />
-        {pathPoints.length > 1 && (
-          <polyline
-            points={polyline}
-            fill="none"
-            stroke="#e82127"
-            strokeWidth="5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            vectorEffect="non-scaling-stroke"
-          />
-        )}
-        <circle
-          cx={start.x}
-          cy={start.y}
-          r="8"
-          fill="#fff"
-          stroke="#1d9b62"
-          strokeWidth="4"
-          vectorEffect="non-scaling-stroke"
-        />
-        <circle
-          cx={end.x}
-          cy={end.y}
-          r="8"
-          fill="#fff"
-          stroke="#e82127"
-          strokeWidth="4"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
+    <div className="amap-route-wrap">
+      <div ref={containerRef} className="amap-route-map" aria-label="高德地图行程轨迹" />
+      {mapError && <div className="amap-route-error">{mapError}</div>}
       <div className="route-legend">
         <span><i className="route-start-dot" />起点</span>
         <span><i className="route-end-dot" />终点</span>
-        <span>北向上 · 位置点连线示意</span>
+        <span>GPS 轨迹点 · 高德坐标转换</span>
       </div>
     </div>
   );
 }
-
 
 function DriveTrendChart({ trends }: { trends: Trends }) {
   const [metric, setMetric] = useState<"speed" | "battery" | "energy">("speed");
@@ -396,7 +470,7 @@ export default function DriveHistory() {
         <div>
           <p className="eyebrow">历史记录</p>
           <h2>行程轨迹</h2>
-          <p>查看最近完成的行程和已采集的位置点。</p>
+          <p>查看最近完成的行程、地图轨迹和行程参数变化。</p>
         </div>
         <Clock3 size={20} />
       </div>
@@ -483,12 +557,12 @@ export default function DriveHistory() {
                 {loadingRoute ? (
                   <div className="drive-history-empty">正在读取轨迹…</div>
                 ) : (
-                  <RouteSketch points={positions} />
+                  <RouteMap points={positions} />
                 )}
                 <DriveTrendChart trends={trends} />
 
                 <p className="route-note">
-                  轨迹仅依据实际收到的位置点连线，未进行道路吸附，也不调用第三方地图。
+                  轨迹使用高德地图展示；按实际收到的 GPS 点连线，暂未进行道路吸附。
                 </p>
               </>
             ) : (
