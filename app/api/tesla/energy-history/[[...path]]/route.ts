@@ -96,7 +96,18 @@ async function proxyAMapService(request: NextRequest, path: string[]) {
     });
     const headers = new Headers();
     const contentType = upstream.headers.get("content-type");
-    if (contentType) headers.set("content-type", contentType);
+    const isCoordinateJsonp =
+      joinedPath === "v3/assistant/coordinate/convert" &&
+      request.nextUrl.searchParams.has("callback");
+
+    // AMap's coordinate endpoint returns a JSONP callback body. The JS SDK
+    // loads it as a script, so preserve an executable JavaScript MIME type
+    // even when AMap labels the upstream response as application/json.
+    if (isCoordinateJsonp && upstream.ok) {
+      headers.set("content-type", "application/javascript; charset=utf-8");
+    } else if (contentType) {
+      headers.set("content-type", contentType);
+    }
     headers.set("cache-control", "no-store");
     headers.set("x-content-type-options", "nosniff");
 
