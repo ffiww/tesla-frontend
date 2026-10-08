@@ -2,6 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Clock3, Route } from "lucide-react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 
 type Drive = {
   id: string;
@@ -20,6 +29,9 @@ type Position = {
   longitude: number;
 };
 
+type TrendPoint = { recorded_at: string; value: number | string | null };
+type Trends = Record<string, TrendPoint[]>;
+
 type DriveListResponse = {
   success: boolean;
   drives?: Drive[];
@@ -31,6 +43,7 @@ type DriveRouteResponse = {
   drive?: Drive;
   positions?: Position[];
   total_position_count?: number;
+  trends?: Trends;
   error?: string;
 };
 
@@ -195,10 +208,107 @@ function RouteSketch({ points }: { points: Position[] }) {
   );
 }
 
+
+function DriveTrendChart({ trends }: { trends: Trends }) {
+  const [metric, setMetric] = useState<"speed" | "battery" | "energy">("speed");
+  const chartData = useMemo(() => {
+    const values = new Map<number, Record<string, any>>();
+    const config = [
+      ["VehicleSpeed", "speed", 1.609344],
+      ["BatteryLevel", "battery", 1],
+      ["Soc", "soc", 1],
+      ["LifetimeEnergyUsed", "energy", 1],
+      ["Odometer", "odometer", 1.609344],
+    ] as const;
+    const firstEnergy = trends.LifetimeEnergyUsed?.find((point) => typeof point.value === "number")?.value;
+    const firstOdometer = trends.Odometer?.find((point) => typeof point.value === "number")?.value;
+
+    for (const [field, key, multiplier] of config) {
+      for (const point of trends[field] ?? []) {
+        if (typeof point.value !== "number") continue;
+        const timestamp = new Date(point.recorded_at).getTime();
+        if (!Number.isFinite(timestamp)) continue;
+        if (!values.has(timestamp)) {
+          values.set(timestamp, {
+            timestamp,
+            label: dateFormatter.format(new Date(timestamp)),
+          });
+        }
+        const value =
+          key === "energy" && typeof firstEnergy === "number"
+            ? (point.value - firstEnergy) * 1000
+            : key === "odometer" && typeof firstOdometer === "number"
+              ? (point.value - firstOdometer) * multiplier
+              : point.value * multiplier;
+        values.get(timestamp)![key] = value;
+      }
+    }
+    return [...values.values()].sort((a, b) => a.timestamp - b.timestamp);
+  }, [trends]);
+
+  const tabs = {
+    speed: { label: "速度", keys: ["speed"] },
+    battery: { label: "电量 / SOC", keys: ["battery", "soc"] },
+    energy: { label: "能耗与里程", keys: ["energy", "odometer"] },
+  } as const;
+  const current = tabs[metric];
+  const hasData = chartData.some((point) => current.keys.some((key) => point[key] != null));
+
+  return (
+    <div className="drive-trend-card">
+      <div className="drive-detail-heading">
+        <div><p className="eyebrow">行程详情</p><h3>参数变化趋势</h3></div>
+        <div className="drive-trend-tabs" role="tablist" aria-label="行程趋势类型">
+          {(["speed", "battery", "energy"] as const).map((key) => (
+            <button key={key} type="button" className={metric === key ? "active" : ""}
+              role="tab" aria-selected={metric === key} onClick={() => setMetric(key)}>
+              {tabs[key].label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {!hasData ? (
+        <div className="drive-history-empty">这段行程没有足够的遥测样本</div>
+      ) : (
+        <div className="drive-chart">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+              <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
+              <XAxis dataKey="timestamp"
+                tickFormatter={(value) => new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value))}
+                minTickGap={32} tick={{ fontSize: 11, fill: "#858991" }} />
+              <YAxis width={55} tick={{ fontSize: 11, fill: "#858991" }} />
+              <Tooltip
+                labelFormatter={(value) => dateFormatter.format(new Date(value))}
+                formatter={(value, name) => {
+                  const labels: Record<string, string> = {
+                    speed: "速度 (km/h)", battery: "电池电量 (%)", soc: "SOC (%)",
+                    energy: "行程内能耗 (Wh)", odometer: "行程内里程 (km)",
+                  };
+                  return [Number(value).toFixed(1), labels[String(name)] ?? String(name)];
+                }}
+              />
+              {current.keys.map((key) => (
+                <Line key={key} type="monotone" dataKey={key} name={key}
+                  stroke={key === "soc" || key === "odometer" ? "#3186c8" : "#e82127"}
+                  strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+      <p className="route-note">
+        曲线来自本次行程时间范围内收到的 Tesla 遥测；速度按 mph 换算为 km/h，能耗和里程显示行程内变化量。
+      </p>
+    </div>
+  );
+}
+
 export default function DriveHistory() {
   const [drives, setDrives] = useState<Drive[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [trends, setTrends] = useState<Trends>({});
   const [positionCount, setPositionCount] = useState(0);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingRoute, setLoadingRoute] = useState(false);
@@ -222,9 +332,11 @@ export default function DriveHistory() {
       }
 
       setPositions(result.positions ?? []);
+      setTrends(result.trends ?? {});
       setPositionCount(result.total_position_count ?? 0);
     } catch (loadError) {
       setPositions([]);
+      setTrends({});
       setPositionCount(0);
       setError(
         loadError instanceof Error
@@ -373,6 +485,7 @@ export default function DriveHistory() {
                 ) : (
                   <RouteSketch points={positions} />
                 )}
+                <DriveTrendChart trends={trends} />
 
                 <p className="route-note">
                   轨迹仅依据实际收到的位置点连线，未进行道路吸附，也不调用第三方地图。
