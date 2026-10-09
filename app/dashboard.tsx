@@ -719,7 +719,7 @@ export default function Dashboard({
                   style={{ strokeDasharray: 2 * Math.PI * 94, strokeDashoffset: 2 * Math.PI * 94 * (1 - Math.min(100, Math.max(0, snapshot?.batteryLevel ?? 0)) / 100) }} />
                 <circle className="gauge-track gauge-inner-track" cx="110" cy="110" r="72" />
                 <circle className="gauge-ring gauge-inner-ring" cx="110" cy="110" r="72"
-                  style={{ strokeDasharray: 2 * Math.PI * 72, strokeDashoffset: 2 * Math.PI * 72 * (1 - Math.min(100, Math.max(0, (snapshot?.batteryRangeKm ?? 0) / 5)) / 100) }} />
+                  style={{ strokeDasharray: 2 * Math.PI * 72, strokeDashoffset: 2 * Math.PI * 72 * (1 - Math.min(100, Math.max(0, (snapshot?.batteryRangeKm ?? 0) / 4.35)) / 100) }} />
               </svg>
               <div className="battery-gauge-center">
                 <strong>{display(snapshot?.batteryLevel, "%")}</strong>
@@ -733,7 +733,7 @@ export default function Dashboard({
             </div>
             <p className="gauge-legend">
               <span><i className="legend-battery" />外环 电量</span>
-              <span><i className="legend-range" />内环 续航比例（0–500 km）</span>
+              <span><i className="legend-range" />内环 续航比例（0–435 km）</span>
             </p>
           </article>
 
