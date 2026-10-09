@@ -99,6 +99,13 @@ type AMapApi = {
     source: "gps",
     callback: (status: string, result: { info?: string; infocode?: string; locations?: AMapLocation[] }) => void
   ) => void;
+  plugin: (name: string, callback: () => void) => void;
+  Geocoder: new (options: Record<string, unknown>) => {
+    getAddress: (
+      point: [number, number],
+      callback: (status: string, result: any) => void
+    ) => void;
+  };
 };
 
 declare global {
@@ -151,11 +158,23 @@ function convertGpsBatch(
   batch: Array<[number, number]>
 ): Promise<AMapLocation[]> {
   return new Promise((resolve, reject) => {
-    AMap.convertFrom(batch, "gps", (status, result) => {
-      if (status !== "complete" || result?.info !== "ok" || !result.locations?.length) {
+    let attempt = 0;
+    const request = () => {
+      AMap.convertFrom(batch, "gps", (status, result) => {
+        if (status === "complete" && result?.info === "ok" && result.locations?.length) {
+          resolve(result.locations);
+          return;
+        }
+
         const details = [status, result?.info, result?.infocode]
           .filter(Boolean)
           .join(" / ");
+        if (attempt < 1) {
+          attempt += 1;
+          window.setTimeout(request, 500);
+          return;
+        }
+
         reject(
           new Error(
             details
@@ -163,10 +182,9 @@ function convertGpsBatch(
               : "高德 GPS 坐标转换失败，未返回错误详情"
           )
         );
-        return;
-      }
-      resolve(result.locations);
-    });
+      });
+    };
+    request();
   });
 }
 
@@ -194,7 +212,13 @@ async function convertGpsPoints(
   return converted;
 }
 
-function RouteMap({ points }: { points: Position[] }) {
+function RouteMap({
+  points,
+  onEndpointsConverted,
+}: {
+  points: Position[];
+  onEndpointsConverted: (endpoints: { start: [number, number]; end: [number, number] } | null) => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoading, setMapLoading] = useState(false);
@@ -210,11 +234,13 @@ function RouteMap({ points }: { points: Position[] }) {
 
     const container = containerRef.current;
     if (!container || valid.length === 0) {
+      onEndpointsConverted(null);
       setMapLoading(false);
       return;
     }
 
     let active = true;
+    onEndpointsConverted(null);
     let map: InstanceType<AMapApi["Map"]> | null = null;
     setMapError(null);
     setMapLoading(true);
@@ -272,11 +298,16 @@ function RouteMap({ points }: { points: Position[] }) {
         const overlays = [line, start, finish];
         map.add(overlays);
         map.setFitView(overlays, false, [48, 48, 48, 48]);
+        onEndpointsConverted({
+          start: path[0] as [number, number],
+          end: path[path.length - 1] as [number, number],
+        });
         setMapLoading(false);
       })
       .catch((error) => {
         if (active) {
           setMapLoading(false);
+          onEndpointsConverted(null);
           setMapError(error instanceof Error ? error.message : "地图加载失败");
         }
       });
@@ -285,7 +316,7 @@ function RouteMap({ points }: { points: Position[] }) {
       active = false;
       map?.destroy();
     };
-  }, [points]);
+  }, [points, onEndpointsConverted]);
 
   const validCount = points.filter(
     (point) =>
@@ -318,73 +349,59 @@ function RouteMap({ points }: { points: Position[] }) {
   );
 }
 
-async function reverseGeocodeGps(point: Pick<Position, "latitude" | "longitude">): Promise<string | null> {
-  const key = process.env.NEXT_PUBLIC_AMAP_KEY;
-  if (!key) return null;
-
-  const AMap = await loadAMap();
-  const converted = await convertGpsBatch(AMap, [[point.longitude, point.latitude]]);
-  const location = converted[0];
-  if (!location) return null;
-
-  const lng = typeof location.getLng === "function" ? location.getLng() : location.lng!;
-  const lat = typeof location.getLat === "function" ? location.getLat() : location.lat!;
-  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
-
-  const query = new URLSearchParams({
-    key,
-    location: `${lng},${lat}`,
-    output: "JSON",
-    extensions: "all",
+function reverseGeocodeCoordinates(
+  AMap: AMapApi,
+  coordinates: [number, number]
+): Promise<string | null> {
+  return new Promise((resolve) => {
+    AMap.plugin("AMap.Geocoder", () => {
+      try {
+        const geocoder = new AMap.Geocoder({ radius: 1000, extensions: "all" });
+        geocoder.getAddress(coordinates, (status, result) => {
+          if (status !== "complete" || result?.info !== "OK") {
+            resolve(null);
+            return;
+          }
+          const regeo = result.regeocode;
+          resolve(
+            regeo?.pois?.[0]?.name ??
+            regeo?.formattedAddress ??
+            null
+          );
+        });
+      } catch {
+        resolve(null);
+      }
+    });
   });
-  const response = await fetch(
-    `/api/tesla/energy-history/_AMapService/v3/geocode/regeo?${query.toString()}`,
-    { cache: "no-store" }
-  );
-  if (!response.ok) return null;
-
-  const result = await response.json();
-  if (result?.status !== "1") return null;
-  return result?.regeocode?.pois?.[0]?.name ?? result?.regeocode?.formatted_address ?? null;
 }
 
-function DriveEndpointNames({ points }: { points: Position[] }) {
+function DriveEndpointNames({
+  start,
+  end,
+}: {
+  start: [number, number] | null;
+  end: [number, number] | null;
+}) {
   const [places, setPlaces] = useState<{ start: string; end: string }>({
     start: "正在查询…",
     end: "正在查询…",
   });
-  const startLatitude = points[0]?.latitude;
-  const startLongitude = points[0]?.longitude;
-  const endLatitude = points[points.length - 1]?.latitude;
-  const endLongitude = points[points.length - 1]?.longitude;
-
   useEffect(() => {
     let active = true;
-    const start = startLatitude == null || startLongitude == null
-      ? undefined
-      : { latitude: startLatitude, longitude: startLongitude };
-    const end = endLatitude == null || endLongitude == null
-      ? undefined
-      : { latitude: endLatitude, longitude: endLongitude };
-
-    if (
-      !start || !end ||
-      !Number.isFinite(start.latitude) || !Number.isFinite(start.longitude) ||
-      !Number.isFinite(end.latitude) || !Number.isFinite(end.longitude)
-    ) {
+    if (!start || !end) {
       setPlaces({ start: "暂无位置名称", end: "暂无位置名称" });
       return () => { active = false; };
     }
 
     setPlaces({ start: "正在查询…", end: "正在查询…" });
-    const lookupStart = reverseGeocodeGps(start);
-    const lookupEnd =
-      start.latitude === end.latitude && start.longitude === end.longitude
-        ? lookupStart
-        : reverseGeocodeGps(end);
-
-    void Promise.all([lookupStart, lookupEnd])
-      .then(([startName, endName]) => {
+    void loadAMap()
+      .then(async (AMap) => {
+        const startName = await reverseGeocodeCoordinates(AMap, start);
+        const endName =
+          start[0] === end[0] && start[1] === end[1]
+            ? startName
+            : await reverseGeocodeCoordinates(AMap, end);
         if (active) {
           setPlaces({
             start: startName ?? "位置名称暂不可用",
@@ -397,7 +414,7 @@ function DriveEndpointNames({ points }: { points: Position[] }) {
       });
 
     return () => { active = false; };
-  }, [startLatitude, startLongitude, endLatitude, endLongitude]);
+  }, [start, end]);
 
   return (
     <div className="drive-endpoint-names" aria-live="polite">
@@ -538,6 +555,10 @@ export default function DriveHistory() {
   const [drives, setDrives] = useState<Drive[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
+  const [routeEndpoints, setRouteEndpoints] = useState<{
+    start: [number, number];
+    end: [number, number];
+  } | null>(null);
   const [trends, setTrends] = useState<Trends>({});
   const [positionCount, setPositionCount] = useState(0);
   const [loadingList, setLoadingList] = useState(true);
@@ -546,6 +567,7 @@ export default function DriveHistory() {
 
   const loadRoute = useCallback(async (driveId: string) => {
     setSelectedId(driveId);
+    setRouteEndpoints(null);
     setLoadingRoute(true);
     setError(null);
 
@@ -566,6 +588,7 @@ export default function DriveHistory() {
       setPositionCount(result.total_position_count ?? 0);
     } catch (loadError) {
       setPositions([]);
+      setRouteEndpoints(null);
       setTrends({});
       setPositionCount(0);
       setError(
@@ -673,7 +696,7 @@ export default function DriveHistory() {
                         new Date(selectedDrive.started_at)
                       )}
                     </strong>
-                    <DriveEndpointNames points={positions} />
+                    <DriveEndpointNames start={routeEndpoints?.start ?? null} end={routeEndpoints?.end ?? null} />
                     <span>
                       {numberLabel(selectedDrive.distance_km)} km
                       <i>·</i>
@@ -714,7 +737,7 @@ export default function DriveHistory() {
                 {loadingRoute ? (
                   <div className="drive-history-empty">正在读取轨迹…</div>
                 ) : (
-                  <RouteMap points={positions} />
+                  <RouteMap points={positions} onEndpointsConverted={setRouteEndpoints} />
                 )}
                 <DriveTrendChart trends={trends} />
 
