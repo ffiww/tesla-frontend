@@ -96,10 +96,10 @@
 .metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .vehicle-location-card{position:relative;isolation:isolate;min-width:0;min-height:280px;overflow:hidden;border:1px solid #dfe1e5;border-radius:22px;background:#e8edf0}
 .vehicle-location-map,.vehicle-location-map-placeholder,.vehicle-location-shade{position:absolute;inset:0}
-.vehicle-location-map{z-index:-2;opacity:.42;pointer-events:none}
-.vehicle-location-map-placeholder{z-index:-3;background:linear-gradient(145deg,#e4ebee,#d8e1e5 48%,#edf0ee)}
-.vehicle-location-shade{z-index:-1;background:linear-gradient(90deg,rgba(255,255,255,.91),rgba(255,255,255,.67) 58%,rgba(255,255,255,.22))}
-.vehicle-location-copy{position:relative;z-index:1;max-width:85%;padding:26px}
+.vehicle-location-map{z-index:0;opacity:.42;pointer-events:none}
+.vehicle-location-map-placeholder{z-index:-1;background:linear-gradient(145deg,#e4ebee,#d8e1e5 48%,#edf0ee)}
+.vehicle-location-shade{z-index:1;background:linear-gradient(90deg,rgba(255,255,255,.91),rgba(255,255,255,.67) 58%,rgba(255,255,255,.22))}
+.vehicle-location-copy{position:relative;z-index:2;max-width:85%;padding:26px}
 .vehicle-location-copy .eyebrow{display:flex;align-items:center;gap:6px}
 .vehicle-location-copy .eyebrow svg{color:#e82127}
 .vehicle-location-copy h2{margin:0;font-size:clamp(1.3rem,2.4vw,1.8rem);line-height:1.35;letter-spacing:-.025em}
