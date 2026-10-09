@@ -2,6 +2,7 @@
 
 import DriveHistory from "./drive-history";
 import EnergyHistory from "./energy-history";
+import VehicleLocationCard from "./vehicle-location";
 
 import {
   BatteryCharging,
@@ -10,7 +11,6 @@ import {
   Clock3,
   Gauge,
   LoaderCircle,
-  LocateFixed,
   LockKeyhole,
   LogOut,
   RefreshCw,
@@ -39,6 +39,7 @@ type Snapshot = {
   locked: boolean | null;
   latitude: number | null;
   longitude: number | null;
+  locationUpdatedAt?: string | null;
 };
 
 type VehiclePayload = {
@@ -390,6 +391,12 @@ export default function Dashboard({
   const authenticated =
     data?.authenticated === true;
 
+  const vehicleOnline =
+    data?.vehicle?.state === "online";
+
+  const hasVehicle =
+    Boolean(data?.vehicle);
+
   return (
     <main className="app-shell">
       <header className="topbar">
@@ -410,18 +417,20 @@ export default function Dashboard({
         <div className="header-status">
           <span
             className={
-              connected
+              vehicleOnline
                 ? "status-dot online"
                 : "status-dot"
             }
           />
 
           <span>
-            {connected
-              ? "车辆已连接"
-              : authenticated
-                ? "车辆未连接"
-                : "等待连接"}
+            {vehicleOnline
+              ? "在线"
+              : hasVehicle
+                ? "offline"
+                : authenticated
+                  ? "offline"
+                  : "等待连接"}
           </span>
 
           {email && (
@@ -500,13 +509,11 @@ export default function Dashboard({
 
             <p className="vehicle-meta">
               <span>
-                {data?.vehicle
-                  ?.state ===
-                "online"
+                {vehicleOnline
                   ? "在线"
-                  : data?.vehicle
-                      ?.state ??
-                    "尚未授权"}
+                  : hasVehicle
+                    ? "offline"
+                    : "尚未授权"}
               </span>
 
               <span>·</span>
@@ -518,7 +525,7 @@ export default function Dashboard({
                         snapshot.capturedAt
                       )
                     )}`
-                  : "等待首次同步"}
+                  : "暂无同步数据"}
               </span>
             </p>
           </div>
@@ -567,11 +574,11 @@ export default function Dashboard({
 
               <div className="setup-copy">
                 <p className="eyebrow">
-                  车辆休眠
+                  offline
                 </p>
 
                 <h2>
-                  车辆当前处于休眠状态
+                  车辆当前未唤醒
                 </h2>
 
                 <p>
@@ -701,42 +708,49 @@ export default function Dashboard({
         >
           <article className="battery-card">
             <div className="card-title">
-              <BatteryCharging
-                size={18}
-              />
-              <span>电池</span>
+              <BatteryCharging size={18} />
+              <span>电量与续航</span>
             </div>
 
-            <div className="battery-value">
-              {display(
-                snapshot?.batteryLevel,
-                "%"
-              )}
-            </div>
-
-            <div className="battery-track">
-              <span
-                style={{
-                  width: `${
-                    snapshot?.batteryLevel ??
-                    0
-                  }%`,
-                }}
-              />
+            <div className="battery-gauge">
+              <svg viewBox="0 0 220 220" role="img" aria-label="外环为电量比例，内环为续航比例">
+                <circle className="gauge-track gauge-outer-track" cx="110" cy="110" r="94" />
+                <circle className="gauge-ring gauge-outer-ring" cx="110" cy="110" r="94"
+                  style={{ strokeDasharray: 2 * Math.PI * 94, strokeDashoffset: 2 * Math.PI * 94 * (1 - Math.min(100, Math.max(0, snapshot?.batteryLevel ?? 0)) / 100) }} />
+                <circle className="gauge-track gauge-inner-track" cx="110" cy="110" r="72" />
+                <circle className="gauge-ring gauge-inner-ring" cx="110" cy="110" r="72"
+                  style={{ strokeDasharray: 2 * Math.PI * 72, strokeDashoffset: 2 * Math.PI * 72 * (1 - Math.min(100, Math.max(0, (snapshot?.batteryRangeKm ?? 0) / 5)) / 100) }} />
+              </svg>
+              <div className="battery-gauge-center">
+                <strong>{display(snapshot?.batteryLevel, "%")}</strong>
+                <span>电池电量</span>
+              </div>
             </div>
 
             <div className="range-row">
-              <span>
-                预计续航
-              </span>
-
-              <strong>
-                {display(
-                  snapshot?.batteryRangeKm,
-                  " km"
-                )}
-              </strong>
+              <span>预计续航</span>
+              <strong>{display(snapshot?.batteryRangeKm, " km")}</strong>
             </div>
+            <p className="gauge-legend">
+              <span><i className="legend-battery" />外环 电量</span>
+              <span><i className="legend-range" />内环 续航比例（0–500 km）</span>
+            </p>
+          </article>
+
+          <article className="facts-card quick-check-card">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">当前状态</p>
+                <h2>快速检查</h2>
+              </div>
+              <Unplug size={20} />
+            </div>
+            <ul>
+              <li><span>车辆连接</span><strong>{vehicleOnline ? "在线" : hasVehicle ? "offline" : "—"}</strong></li>
+              <li><span>充电连接</span><strong>{snapshot?.chargingState === "Disconnected" ? "未连接" : chargeLabel}</strong></li>
+              <li><span>总里程</span><strong>{display(snapshot?.odometerKm, " km")}</strong></li>
+              <li><span>数据时间</span><strong>{snapshot?.capturedAt ? formatter.format(new Date(snapshot.capturedAt)) : "暂无同步数据"}</strong></li>
+            </ul>
           </article>
 
           <article className="charge-card">
@@ -831,88 +845,16 @@ export default function Dashboard({
             </strong>
           </article>
 
-          <article className="metric">
-            <LocateFixed />
-            <span>
-              车辆位置
-            </span>
-            <strong>
-              {snapshot?.latitude ==
-              null
-                ? "未授权"
-                : "已获取"}
-            </strong>
-          </article>
         </section>
 
         <section className="lower-grid">
           <EnergyHistory />
 
-          <article className="facts-card">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">
-                  当前状态
-                </p>
-
-                <h2>
-                  快速检查
-                </h2>
-              </div>
-
-              <Unplug
-                size={20}
-              />
-            </div>
-
-            <ul>
-              <li>
-                <span>
-                  车辆连接
-                </span>
-
-                <strong>
-                  {data?.vehicle
-                    ?.state ===
-                  "online"
-                    ? "在线"
-                    : data
-                        ?.vehicle
-                        ?.state ??
-                      "—"}
-                </strong>
-              </li>
-
-              <li>
-                <span>
-                  充电连接
-                </span>
-
-                <strong>
-                  {snapshot?.chargingState ===
-                  "Disconnected"
-                    ? "未连接"
-                    : chargeLabel}
-                </strong>
-              </li>
-
-              <li>
-                <span>
-                  数据时间
-                </span>
-
-                <strong>
-                  {snapshot?.capturedAt
-                    ? formatter.format(
-                        new Date(
-                          snapshot.capturedAt
-                        )
-                      )
-                    : "—"}
-                </strong>
-              </li>
-            </ul>
-          </article>
+          <VehicleLocationCard
+            latitude={snapshot?.latitude ?? null}
+            longitude={snapshot?.longitude ?? null}
+            updatedAt={snapshot?.locationUpdatedAt ?? null}
+          />
         </section>
         <DriveHistory />
 
