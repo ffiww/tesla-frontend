@@ -134,7 +134,7 @@ function RouteMap({
 
         const converted = await convertGpsPoints(
           AMap,
-          sampled.map((point) => [point.longitude, point.latitude])
+          sampled.map((point) => [point.longitude, point.latitude] as [number, number])
         );
         if (!active) return;
         if (converted.length === 0) throw new Error("高德没有返回可用坐标");
