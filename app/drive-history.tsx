@@ -6,6 +6,7 @@ import {
   CartesianGrid,
   Line,
   LineChart,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -360,6 +361,33 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
     energy: { label: "能耗与里程", keys: ["energy", "odometer"] },
   } as const;
   const current = tabs[metric];
+  const labels: Record<string, string> = {
+    speed: "速度 (km/h)",
+    battery: "电池电量 (%)",
+    soc: "SOC (%)",
+    energy: "行程内能耗 (kWh)",
+    odometer: "行程内里程 (km)",
+  };
+  const rightAxisKeys = metric === "energy" ? ["odometer"] : [];
+  const leftDomain = useMemo(() => {
+    const values = chartData.flatMap((point) =>
+      current.keys.filter((key) => !rightAxisKeys.includes(key))
+        .map((key) => point[key]).filter((value) => typeof value === "number")
+    );
+    if (!values.length) return ["auto", "auto"] as [string, string];
+    const low = Math.min(...values);
+    const high = Math.max(...values);
+    const pad = Math.max((high - low) * 0.1, Math.abs(high || low || 1) * 0.015);
+    return [low - pad, high + pad] as [number, number];
+  }, [chartData, current.keys, rightAxisKeys]);
+  const rightDomain = useMemo(() => {
+    const values = chartData.map((point) => point.odometer).filter((value) => typeof value === "number");
+    if (!values.length) return ["auto", "auto"] as [string, string];
+    const low = Math.min(...values);
+    const high = Math.max(...values);
+    const pad = Math.max((high - low) * 0.1, Math.abs(high || low || 1) * 0.015);
+    return [low - pad, high + pad] as [number, number];
+  }, [chartData]);
   const hasData = chartData.some((point) => current.keys.some((key) => point[key] != null));
 
   return (
@@ -380,26 +408,31 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
       ) : (
         <div className="drive-chart">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+            <LineChart data={chartData} margin={{ top: 14, right: metric === "energy" ? 8 : 12, left: -18, bottom: 0 }}>
               <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
               <XAxis dataKey="timestamp"
                 tickFormatter={(value) => new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value))}
                 minTickGap={32} tick={{ fontSize: 11, fill: "#858991" }} />
-              <YAxis width={55} tick={{ fontSize: 11, fill: "#858991" }} />
+              <YAxis yAxisId="left" width={55} domain={leftDomain} allowDataOverflow
+                tick={{ fontSize: 11, fill: "#858991" }} />
+              {metric === "energy" && (
+                <YAxis yAxisId="right" orientation="right" width={55} domain={rightDomain} allowDataOverflow
+                  tick={{ fontSize: 11, fill: "#858991" }} />
+              )}
               <Tooltip
+                position={{ x: 62, y: 6 }}
+                cursor={{ stroke: "#8d9299", strokeDasharray: "4 4" }}
                 labelFormatter={(value) => dateFormatter.format(new Date(value))}
-                formatter={(value, name) => {
-                  const labels: Record<string, string> = {
-                    speed: "速度 (km/h)", battery: "电池电量 (%)", soc: "SOC (%)",
-                    energy: "行程内能耗 (Wh)", odometer: "行程内里程 (km)",
-                  };
-                  return [Number(value).toFixed(1), labels[String(name)] ?? String(name)];
-                }}
+                formatter={(value, name) => [Number(value).toFixed(2), labels[String(name)] ?? String(name)]}
+                contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
               />
+              <Legend verticalAlign="top" height={28}
+                formatter={(value) => labels[String(value)] ?? String(value)} />
               {current.keys.map((key) => (
-                <Line key={key} type="monotone" dataKey={key} name={key}
+                <Line key={key} yAxisId={rightAxisKeys.includes(key) ? "right" : "left"}
+                  type="monotone" dataKey={key} name={key}
                   stroke={key === "soc" || key === "odometer" ? "#3186c8" : "#e82127"}
-                  strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                  strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
               ))}
             </LineChart>
           </ResponsiveContainer>
