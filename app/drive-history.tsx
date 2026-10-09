@@ -365,7 +365,7 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
     speed: "速度 (km/h)",
     battery: "电池电量 (%)",
     soc: "SOC (%)",
-    energy: "行程内能耗 (kWh)",
+    energy: "行程内能耗 (Wh)",
     odometer: "行程内里程 (km)",
   };
   const rightAxisKeys = metric === "energy" ? ["odometer"] : [];
@@ -374,7 +374,7 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
       current.keys.filter((key) => !rightAxisKeys.includes(key))
         .map((key) => point[key]).filter((value) => typeof value === "number")
     );
-    if (!values.length) return ["auto", "auto"] as [string, string];
+    if (!values.length) return [0, 1] as [number, number];
     const low = Math.min(...values);
     const high = Math.max(...values);
     const pad = Math.max((high - low) * 0.1, Math.abs(high || low || 1) * 0.015);
