@@ -103,15 +103,18 @@ export default function VehicleLocationCard({ latitude, longitude, updatedAt }: 
             key,
             location: `${point.lng},${point.lat}`,
             output: "JSON",
-            extensions: "base",
+            extensions: "all",
           });
           const response = await fetch(
             `/api/tesla/energy-history/_AMapService/v3/geocode/regeo?${query.toString()}`,
             { cache: "no-store" }
           );
           const result = await response.json();
-          const formatted = result?.regeocode?.formatted_address;
-          if (active) setAddress(result?.status === "1" && formatted ? formatted : "位置已获取");
+          const regeo = result?.regeocode;
+          const formatted = regeo?.formatted_address;
+          const placeName = regeo?.pois?.[0]?.name;
+          const displayName = placeName || formatted;
+          if (active) setAddress(result?.status === "1" && displayName ? displayName : "位置已获取");
         } catch {
           if (active) setAddress("位置已获取");
         }
