@@ -96,14 +96,23 @@ async function proxyAMapService(request: NextRequest, path: string[]) {
     });
     const headers = new Headers();
     const contentType = upstream.headers.get("content-type");
+    const upstreamBody = await upstream.arrayBuffer();
+    const callback = request.nextUrl.searchParams.get("callback");
+    const responseText = callback
+      ? new TextDecoder().decode(upstreamBody).trimStart()
+      : "";
+    const isJsonpResponse =
+      Boolean(callback) &&
+      (responseText.startsWith(`${callback}(`) ||
+        responseText.startsWith(`${callback} (`));
     const isCoordinateJsonp =
       joinedPath === "v3/assistant/coordinate/convert" &&
-      request.nextUrl.searchParams.has("callback");
+      Boolean(callback);
 
-    // AMap's coordinate endpoint returns a JSONP callback body. The JS SDK
-    // loads it as a script, so preserve an executable JavaScript MIME type
-    // even when AMap labels the upstream response as application/json.
-    if (isCoordinateJsonp && upstream.ok) {
+    // AMap sometimes labels JSONP callback bodies as application/json. When
+    // loaded by the JS SDK as a script, browsers reject that MIME type. Detect
+    // JSONP on every proxied service endpoint, not only coordinate conversion.
+    if (upstream.ok && (isJsonpResponse || isCoordinateJsonp)) {
       headers.set("content-type", "application/javascript; charset=utf-8");
     } else if (contentType) {
       headers.set("content-type", contentType);
@@ -111,7 +120,7 @@ async function proxyAMapService(request: NextRequest, path: string[]) {
     headers.set("cache-control", "no-store");
     headers.set("x-content-type-options", "nosniff");
 
-    return new NextResponse(await upstream.arrayBuffer(), {
+    return new NextResponse(upstreamBody, {
       status: upstream.status,
       headers,
     });
