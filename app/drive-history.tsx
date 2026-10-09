@@ -327,8 +327,8 @@ async function reverseGeocodeGps(point: Position): Promise<string | null> {
   const location = converted[0];
   if (!location) return null;
 
-  const lng = typeof location.getLng === "function" ? location.getLng() : location.lng;
-  const lat = typeof location.getLat === "function" ? location.getLat() : location.lat;
+  const lng = typeof location.getLng === "function" ? location.getLng() : location.lng!;
+  const lat = typeof location.getLat === "function" ? location.getLat() : location.lat!;
   if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
 
   const query = new URLSearchParams({
@@ -353,15 +353,25 @@ function DriveEndpointNames({ points }: { points: Position[] }) {
     start: "正在查询…",
     end: "正在查询…",
   });
-  const start = points[0];
-  const end = points[points.length - 1];
+  const startLatitude = points[0]?.latitude;
+  const startLongitude = points[0]?.longitude;
+  const endLatitude = points[points.length - 1]?.latitude;
+  const endLongitude = points[points.length - 1]?.longitude;
 
   useEffect(() => {
     let active = true;
-    const valid = (point: Position | undefined) =>
-      point && Number.isFinite(point.latitude) && Number.isFinite(point.longitude);
+    const start = startLatitude == null || startLongitude == null
+      ? undefined
+      : { latitude: startLatitude, longitude: startLongitude };
+    const end = endLatitude == null || endLongitude == null
+      ? undefined
+      : { latitude: endLatitude, longitude: endLongitude };
 
-    if (!valid(start) || !valid(end)) {
+    if (
+      !start || !end ||
+      !Number.isFinite(start.latitude) || !Number.isFinite(start.longitude) ||
+      !Number.isFinite(end.latitude) || !Number.isFinite(end.longitude)
+    ) {
       setPlaces({ start: "暂无位置名称", end: "暂无位置名称" });
       return () => { active = false; };
     }
@@ -387,7 +397,7 @@ function DriveEndpointNames({ points }: { points: Position[] }) {
       });
 
     return () => { active = false; };
-  }, [start?.latitude, start?.longitude, end?.latitude, end?.longitude]);
+  }, [startLatitude, startLongitude, endLatitude, endLongitude]);
 
   return (
     <div className="drive-endpoint-names" aria-live="polite">
