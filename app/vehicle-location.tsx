@@ -54,11 +54,13 @@ function loadMapSdk(): Promise<any> {
 export default function VehicleLocationCard({ latitude, longitude, updatedAt }: Props) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const [address, setAddress] = useState("正在读取位置…");
+  const [addressDetails, setAddressDetails] = useState("");
   const [mapReady, setMapReady] = useState(false);
 
   useEffect(() => {
     if (latitude == null || longitude == null || !Number.isFinite(latitude) || !Number.isFinite(longitude)) {
       setAddress("暂无可用位置");
+      setAddressDetails("");
       setMapReady(false);
       return;
     }
@@ -66,6 +68,7 @@ export default function VehicleLocationCard({ latitude, longitude, updatedAt }: 
     let active = true;
     let map: any;
     setAddress("正在解析位置…");
+    setAddressDetails("");
     setMapReady(false);
 
     void loadMapSdk().then((AMap) => {
@@ -114,7 +117,10 @@ export default function VehicleLocationCard({ latitude, longitude, updatedAt }: 
           const formatted = regeo?.formatted_address;
           const placeName = regeo?.pois?.[0]?.name;
           const displayName = placeName || formatted;
-          if (active) setAddress(result?.status === "1" && displayName ? displayName : "位置已获取");
+          if (active) {
+            setAddress(result?.status === "1" && displayName ? displayName : "位置已获取");
+            setAddressDetails(placeName && formatted && placeName !== formatted ? formatted : "");
+          }
         } catch {
           if (active) setAddress("位置已获取");
         }
@@ -136,6 +142,7 @@ export default function VehicleLocationCard({ latitude, longitude, updatedAt }: 
       <div className="vehicle-location-copy">
         <p className="eyebrow"><MapPin size={14} />车辆位置</p>
         <h2>{address}</h2>
+        {addressDetails && <p className="vehicle-location-address">{addressDetails}</p>}
         <p>{updatedAt ? `位置更新于 ${locationFormatter.format(new Date(updatedAt))}` : "暂无位置更新时间"}</p>
       </div>
       {!mapReady && <div className="vehicle-location-map-placeholder" />}
