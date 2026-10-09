@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MapPin } from "lucide-react";
+import { convertGpsPoints, loadAMap, reverseGeocode, type AMapApi } from "@/lib/amap-client";
 
 type Props = {
   latitude: number | null;
@@ -16,40 +17,6 @@ const locationFormatter = new Intl.DateTimeFormat("zh-CN", {
   minute: "2-digit",
 });
 
-function loadMapSdk(): Promise<any> {
-  const browser = window as unknown as Record<string, any>;
-  if (browser.AMap) return Promise.resolve(browser.AMap);
-  if (browser.__teslaAmapScriptPromise) return browser.__teslaAmapScriptPromise;
-
-  const key = process.env.NEXT_PUBLIC_AMAP_KEY;
-  if (!key) return Promise.reject(new Error("map key unavailable"));
-
-  browser._AMapSecurityConfig = {
-    serviceHost: `${window.location.origin}/api/tesla/energy-history/_AMapService`,
-  };
-
-  browser.__teslaAmapScriptPromise = new Promise((resolve, reject) => {
-    const existing = document.getElementById("amap-js-sdk") as HTMLScriptElement | null;
-    const script = existing ?? document.createElement("script");
-    const onLoad = () => browser.AMap ? resolve(browser.AMap) : reject(new Error("map sdk unavailable"));
-    const onError = () => {
-      script.remove();
-      browser.__teslaAmapScriptPromise = undefined;
-      reject(new Error("map sdk failed"));
-    };
-
-    script.addEventListener("load", onLoad, { once: true });
-    script.addEventListener("error", onError, { once: true });
-    if (!existing) {
-      script.id = "amap-js-sdk";
-      script.async = true;
-      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key)}`;
-      document.head.appendChild(script);
-    }
-  });
-
-  return browser.__teslaAmapScriptPromise;
-}
 
 export default function VehicleLocationCard({ latitude, longitude, updatedAt }: Props) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -66,22 +33,28 @@ export default function VehicleLocationCard({ latitude, longitude, updatedAt }: 
     }
 
     let active = true;
-    let map: any;
+    let map: InstanceType<AMapApi["Map"]> | null = null;
     setAddress("正在解析位置…");
     setAddressDetails("");
     setMapReady(false);
 
-    void loadMapSdk().then((AMap) => {
-      if (!active || !mapContainer.current) return;
-      AMap.convertFrom([[longitude, latitude]], "gps", async (status: string, result: any) => {
-        const point = result?.locations?.[0];
-        if (!active || status !== "complete" || result?.info !== "ok" || !point) {
-          if (active) setAddress("位置暂不可用");
-          return;
+    void loadAMap()
+      .then(async (AMap) => {
+        if (!active || !mapContainer.current) return;
+
+        const converted = await convertGpsPoints(AMap, [[longitude, latitude]]);
+        if (!active || !mapContainer.current || converted.length !== 1) {
+          throw new Error("高德没有返回有效位置坐标");
         }
 
+        const point = converted[0];
+        const coordinates: [number, number] = [
+          typeof point.getLng === "function" ? point.getLng() : point.lng!,
+          typeof point.getLat === "function" ? point.getLat() : point.lat!,
+        ];
+
         map = new AMap.Map(mapContainer.current, {
-          center: point,
+          center: coordinates,
           zoom: 15,
           viewMode: "2D",
           dragEnable: false,
@@ -92,43 +65,22 @@ export default function VehicleLocationCard({ latitude, longitude, updatedAt }: 
           showLabel: true,
           mapStyle: "amap://styles/normal",
         });
-        map.add(new AMap.Marker({ position: point, anchor: "bottom-center" }));
-        if (active) setMapReady(true);
+        map.add(new AMap.Marker({ position: coordinates, anchor: "bottom-center" }));
+        setMapReady(true);
 
-        const lng = typeof point.getLng === "function" ? point.getLng() : point.lng;
-        const lat = typeof point.getLat === "function" ? point.getLat() : point.lat;
-        AMap.plugin("AMap.Geocoder", () => {
-          try {
-            const geocoder = new AMap.Geocoder({ radius: 1000, extensions: "all" });
-            geocoder.getAddress([lng, lat], (geocodeStatus: string, result: any) => {
-              const regeo = result?.regeocode;
-              const firstPoi = Array.isArray(regeo?.pois) ? regeo.pois[0] : null;
-              const formatted =
-                regeo?.formattedAddress ??
-                regeo?.formatted_address ??
-                regeo?.address;
-              const placeName = firstPoi?.name ?? firstPoi?.title;
-              const displayName = placeName ?? formatted;
-              const succeeded =
-                String(geocodeStatus).toLowerCase() === "complete" && Boolean(regeo);
-
-              if (active) {
-                setAddress(succeeded && displayName ? displayName : "位置名称暂不可用");
-                setAddressDetails(
-                  succeeded && placeName && formatted && placeName !== formatted
-                    ? formatted
-                    : ""
-                );
-              }
-            });
-          } catch {
-            if (active) setAddress("位置名称暂不可用");
-          }
-        });
+        const place = await reverseGeocode(AMap, coordinates);
+        if (!active) return;
+        const displayName = place.name ?? place.formattedAddress;
+        setAddress(displayName ?? "位置名称暂不可用");
+        setAddressDetails(
+          place.name && place.formattedAddress && place.name !== place.formattedAddress
+            ? place.formattedAddress
+            : ""
+        );
+      })
+      .catch(() => {
+        if (active) setAddress("地图暂不可用");
       });
-    }).catch(() => {
-      if (active) setAddress("地图暂不可用");
-    });
 
     return () => {
       active = false;

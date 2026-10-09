@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, Route } from "lucide-react";
+import { convertGpsPoints, loadAMap, reverseGeocode, type AMapApi } from "@/lib/amap-client";
 import {
   CartesianGrid,
   Line,
@@ -79,139 +80,6 @@ function durationLabel(start: string, end: string | null) {
     : `${restMinutes}分钟`;
 }
 
-type AMapLocation = {
-  getLng?: () => number;
-  getLat?: () => number;
-  lng?: number;
-  lat?: number;
-};
-
-type AMapApi = {
-  Map: new (container: HTMLElement, options: Record<string, unknown>) => {
-    add: (overlays: unknown | unknown[]) => void;
-    setFitView: (overlays?: unknown[], immediately?: boolean, padding?: number[]) => void;
-    destroy: () => void;
-  };
-  Polyline: new (options: Record<string, unknown>) => unknown;
-  Marker: new (options: Record<string, unknown>) => unknown;
-  convertFrom: (
-    points: Array<[number, number]>,
-    source: "gps",
-    callback: (status: string, result: { info?: string; infocode?: string; locations?: AMapLocation[] }) => void
-  ) => void;
-  plugin: (name: string, callback: () => void) => void;
-  Geocoder: new (options: Record<string, unknown>) => {
-    getAddress: (
-      point: [number, number],
-      callback: (status: string, result: any) => void
-    ) => void;
-  };
-};
-
-declare global {
-  interface Window {
-    AMap?: AMapApi;
-    _AMapSecurityConfig?: { serviceHost: string };
-    __teslaAmapScriptPromise?: Promise<AMapApi>;
-  }
-}
-
-function loadAMap(): Promise<AMapApi> {
-  if (window.AMap) return Promise.resolve(window.AMap);
-  if (window.__teslaAmapScriptPromise) return window.__teslaAmapScriptPromise;
-
-  const key = process.env.NEXT_PUBLIC_AMAP_KEY;
-  if (!key) return Promise.reject(new Error("尚未配置高德地图 Web JS API Key"));
-
-  window._AMapSecurityConfig = {
-    serviceHost: `${window.location.origin}/api/tesla/energy-history/_AMapService`,
-  };
-
-  window.__teslaAmapScriptPromise = new Promise<AMapApi>((resolve, reject) => {
-    const existing = document.getElementById("amap-js-sdk") as HTMLScriptElement | null;
-    const script = existing ?? document.createElement("script");
-    const onLoad = () => {
-      if (window.AMap) resolve(window.AMap);
-      else reject(new Error("高德地图脚本已加载，但地图 SDK 不可用"));
-    };
-    const onError = () => {
-      script.remove();
-      window.__teslaAmapScriptPromise = undefined;
-      reject(new Error("高德地图加载失败，请检查 Key 和域名白名单"));
-    };
-
-    script.addEventListener("load", onLoad, { once: true });
-    script.addEventListener("error", onError, { once: true });
-    if (!existing) {
-      script.id = "amap-js-sdk";
-      script.async = true;
-      script.src = `https://webapi.amap.com/maps?v=2.0&key=${encodeURIComponent(key)}`;
-      document.head.appendChild(script);
-    }
-  });
-
-  return window.__teslaAmapScriptPromise;
-}
-
-function convertGpsBatch(
-  AMap: AMapApi,
-  batch: Array<[number, number]>
-): Promise<AMapLocation[]> {
-  return new Promise((resolve, reject) => {
-    let attempt = 0;
-    const request = () => {
-      AMap.convertFrom(batch, "gps", (status, result) => {
-        if (status === "complete" && result?.info === "ok" && result.locations?.length) {
-          resolve(result.locations);
-          return;
-        }
-
-        const details = [status, result?.info, result?.infocode]
-          .filter(Boolean)
-          .join(" / ");
-        if (attempt < 1) {
-          attempt += 1;
-          window.setTimeout(request, 500);
-          return;
-        }
-
-        reject(
-          new Error(
-            details
-              ? `高德 GPS 坐标转换失败（${details}）`
-              : "高德 GPS 坐标转换失败，未返回错误详情"
-          )
-        );
-      });
-    };
-    request();
-  });
-}
-
-async function convertGpsPoints(
-  AMap: AMapApi,
-  points: Position[]
-): Promise<AMapLocation[]> {
-  const batches: Array<Array<[number, number]>> = [];
-  for (let index = 0; index < points.length; index += 40) {
-    batches.push(
-      points.slice(index, index + 40).map(
-        (point) => [point.longitude, point.latitude] as [number, number]
-      )
-    );
-  }
-
-  // Convert a few batches concurrently, preserving original point order.
-  const converted: AMapLocation[] = [];
-  for (let index = 0; index < batches.length; index += 3) {
-    const convertedBatches = await Promise.all(
-      batches.slice(index, index + 3).map((batch) => convertGpsBatch(AMap, batch))
-    );
-    converted.push(...convertedBatches.flat());
-  }
-  return converted;
-}
-
 function RouteMap({
   points,
   onEndpointsConverted,
@@ -264,7 +132,10 @@ function RouteMap({
           resizeEnable: true,
         });
 
-        const converted = await convertGpsPoints(AMap, sampled);
+        const converted = await convertGpsPoints(
+          AMap,
+          sampled.map((point) => [point.longitude, point.latitude])
+        );
         if (!active) return;
         if (converted.length === 0) throw new Error("高德没有返回可用坐标");
 
@@ -349,37 +220,6 @@ function RouteMap({
   );
 }
 
-function reverseGeocodeCoordinates(
-  AMap: AMapApi,
-  coordinates: [number, number]
-): Promise<string | null> {
-  return new Promise((resolve) => {
-    AMap.plugin("AMap.Geocoder", () => {
-      try {
-        const geocoder = new AMap.Geocoder({ radius: 1000, extensions: "all" });
-        geocoder.getAddress(coordinates, (status, result) => {
-          const regeo = result?.regeocode;
-          if (String(status).toLowerCase() !== "complete" || !regeo) {
-            resolve(null);
-            return;
-          }
-
-          const firstPoi = Array.isArray(regeo.pois) ? regeo.pois[0] : null;
-          const placeName = firstPoi?.name ?? firstPoi?.title;
-          const formattedAddress =
-            regeo.formattedAddress ??
-            regeo.formatted_address ??
-            regeo.address;
-
-          resolve(placeName ?? formattedAddress ?? null);
-        });
-      } catch {
-        resolve(null);
-      }
-    });
-  });
-}
-
 function DriveEndpointNames({
   start,
   end,
@@ -401,11 +241,13 @@ function DriveEndpointNames({
     setPlaces({ start: "正在查询…", end: "正在查询…" });
     void loadAMap()
       .then(async (AMap) => {
-        const startName = await reverseGeocodeCoordinates(AMap, start);
-        const endName =
+        const startPlace = await reverseGeocode(AMap, start);
+        const startName = startPlace.name ?? startPlace.formattedAddress;
+        const endPlace =
           start[0] === end[0] && start[1] === end[1]
-            ? startName
-            : await reverseGeocodeCoordinates(AMap, end);
+            ? startPlace
+            : await reverseGeocode(AMap, end);
+        const endName = endPlace.name ?? endPlace.formattedAddress;
         if (active) {
           setPlaces({
             start: startName ?? "位置名称暂不可用",
