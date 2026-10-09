@@ -67,3 +67,46 @@
 .amap-route-wrap .route-legend{position:relative;background:#fff}
 @media(max-width:820px){.amap-route-map{height:320px}}
 @media(max-width:540px){.amap-route-map{height:260px}}
+
+
+/* Dashboard overview refinements */
+.hero-grid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:stretch}
+.hero-grid .charge-card{grid-column:1/-1}
+.battery-card{min-height:0;padding:22px 26px 19px}
+.battery-gauge{width:min(100%,230px);aspect-ratio:1;position:relative;margin:2px auto 0}
+.battery-gauge svg{display:block;width:100%;height:100%;overflow:visible}
+.battery-gauge circle{fill:none;stroke-linecap:round}
+.gauge-track{stroke:#44474d}
+.gauge-outer-track,.gauge-outer-ring{stroke-width:10}
+.gauge-inner-track,.gauge-inner-ring{stroke-width:8}
+.gauge-outer-ring{stroke:#e82127;transform:rotate(-90deg);transform-origin:110px 110px;transition:stroke-dashoffset .45s ease}
+.gauge-inner-ring{stroke:#77b9ef;transform:rotate(-90deg);transform-origin:110px 110px;transition:stroke-dashoffset .45s ease}
+.battery-gauge-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none}
+.battery-gauge-center strong{font-size:2.55rem;line-height:1;font-weight:650;letter-spacing:-.05em}
+.battery-gauge-center span{margin-top:7px;color:#c8cbd0;font-size:.78rem}
+.battery-card .range-row{margin-top:12px}
+.gauge-legend{display:flex;justify-content:center;gap:16px;margin:10px 0 0;color:#aeb2b8;font-size:.7rem;flex-wrap:wrap}
+.gauge-legend span{display:inline-flex;align-items:center;gap:6px}
+.gauge-legend i{width:8px;height:8px;border-radius:50%;background:#e82127}
+.gauge-legend .legend-range{background:#77b9ef}
+.quick-check-card{min-height:0;padding:22px 24px}
+.quick-check-card .section-heading h2{font-size:1.25rem}
+.quick-check-card ul{padding-top:8px}
+.quick-check-card li{padding:12px 0}
+.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.vehicle-location-card{position:relative;isolation:isolate;min-width:0;min-height:280px;overflow:hidden;border:1px solid #dfe1e5;border-radius:22px;background:#e8edf0}
+.vehicle-location-map,.vehicle-location-map-placeholder,.vehicle-location-shade{position:absolute;inset:0}
+.vehicle-location-map{z-index:-2;opacity:.42;pointer-events:none}
+.vehicle-location-map-placeholder{z-index:-3;background:linear-gradient(145deg,#e4ebee,#d8e1e5 48%,#edf0ee)}
+.vehicle-location-shade{z-index:-1;background:linear-gradient(90deg,rgba(255,255,255,.91),rgba(255,255,255,.67) 58%,rgba(255,255,255,.22))}
+.vehicle-location-copy{position:relative;z-index:1;max-width:85%;padding:26px}
+.vehicle-location-copy .eyebrow{display:flex;align-items:center;gap:6px}
+.vehicle-location-copy .eyebrow svg{color:#e82127}
+.vehicle-location-copy h2{margin:0;font-size:clamp(1.3rem,2.4vw,1.8rem);line-height:1.35;letter-spacing:-.025em}
+.vehicle-location-copy>p:last-child{margin:10px 0 0;color:#73777e;font-size:.82rem}
+.drive-chart .recharts-tooltip-wrapper{pointer-events:none!important}
+.drive-chart .recharts-default-tooltip{border:1px solid #e1e4e8!important;border-radius:10px!important;box-shadow:0 8px 24px rgba(22,24,29,.12)!important}
+.drive-chart .recharts-legend-wrapper{font-size:.75rem}
+.drive-chart .recharts-legend-item-text{color:#656a72!important}
+@media(max-width:820px){.hero-grid{grid-template-columns:1fr 1fr}.hero-grid .charge-card{grid-column:1/-1}.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.vehicle-location-card{min-height:240px}}
+@media(max-width:540px){.hero-grid{grid-template-columns:1fr}.hero-grid .charge-card{grid-column:auto}.battery-card{padding:20px}.battery-gauge{width:min(100%,220px)}.metric-grid{grid-template-columns:1fr}.vehicle-location-card{min-height:220px}.vehicle-location-copy{max-width:100%;padding:22px}.gauge-legend{gap:10px;font-size:.66rem}}
