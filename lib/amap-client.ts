@@ -72,10 +72,7 @@ export function loadAMap(): Promise<AMapApi> {
     const existing = document.getElementById(SDK_SCRIPT_ID) as HTMLScriptElement | null;
     const script = existing ?? document.createElement("script");
     let settled = false;
-    const timeout = window.setTimeout(
-      () => finish(new Error("高德地图 SDK 加载超时")),
-      15_000
-    );
+    let timeout = 0;
 
     const finish = (error?: Error) => {
       if (settled) return;
@@ -100,6 +97,10 @@ export function loadAMap(): Promise<AMapApi> {
 
     script.addEventListener("load", onLoad, { once: true });
     script.addEventListener("error", onError, { once: true });
+    timeout = window.setTimeout(
+      () => finish(new Error("高德地图 SDK 加载超时")),
+      15_000
+    );
     if (!existing) {
       script.id = SDK_SCRIPT_ID;
       script.async = true;
