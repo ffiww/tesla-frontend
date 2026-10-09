@@ -318,7 +318,7 @@ function RouteMap({ points }: { points: Position[] }) {
   );
 }
 
-async function reverseGeocodeGps(point: Position): Promise<string | null> {
+async function reverseGeocodeGps(point: Pick<Position, "latitude" | "longitude">): Promise<string | null> {
   const key = process.env.NEXT_PUBLIC_AMAP_KEY;
   if (!key) return null;
 
