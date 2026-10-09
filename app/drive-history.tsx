@@ -318,6 +318,95 @@ function RouteMap({ points }: { points: Position[] }) {
   );
 }
 
+async function reverseGeocodeGps(point: Position): Promise<string | null> {
+  const key = process.env.NEXT_PUBLIC_AMAP_KEY;
+  if (!key) return null;
+
+  const AMap = await loadAMap();
+  const converted = await convertGpsBatch(AMap, [[point.longitude, point.latitude]]);
+  const location = converted[0];
+  if (!location) return null;
+
+  const lng = typeof location.getLng === "function" ? location.getLng() : location.lng!;
+  const lat = typeof location.getLat === "function" ? location.getLat() : location.lat!;
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+
+  const query = new URLSearchParams({
+    key,
+    location: `${lng},${lat}`,
+    output: "JSON",
+    extensions: "all",
+  });
+  const response = await fetch(
+    `/api/tesla/energy-history/_AMapService/v3/geocode/regeo?${query.toString()}`,
+    { cache: "no-store" }
+  );
+  if (!response.ok) return null;
+
+  const result = await response.json();
+  if (result?.status !== "1") return null;
+  return result?.regeocode?.pois?.[0]?.name ?? result?.regeocode?.formatted_address ?? null;
+}
+
+function DriveEndpointNames({ points }: { points: Position[] }) {
+  const [places, setPlaces] = useState<{ start: string; end: string }>({
+    start: "正在查询…",
+    end: "正在查询…",
+  });
+  const startLatitude = points[0]?.latitude;
+  const startLongitude = points[0]?.longitude;
+  const endLatitude = points[points.length - 1]?.latitude;
+  const endLongitude = points[points.length - 1]?.longitude;
+
+  useEffect(() => {
+    let active = true;
+    const start = startLatitude == null || startLongitude == null
+      ? undefined
+      : { latitude: startLatitude, longitude: startLongitude };
+    const end = endLatitude == null || endLongitude == null
+      ? undefined
+      : { latitude: endLatitude, longitude: endLongitude };
+
+    if (
+      !start || !end ||
+      !Number.isFinite(start.latitude) || !Number.isFinite(start.longitude) ||
+      !Number.isFinite(end.latitude) || !Number.isFinite(end.longitude)
+    ) {
+      setPlaces({ start: "暂无位置名称", end: "暂无位置名称" });
+      return () => { active = false; };
+    }
+
+    setPlaces({ start: "正在查询…", end: "正在查询…" });
+    const lookupStart = reverseGeocodeGps(start);
+    const lookupEnd =
+      start.latitude === end.latitude && start.longitude === end.longitude
+        ? lookupStart
+        : reverseGeocodeGps(end);
+
+    void Promise.all([lookupStart, lookupEnd])
+      .then(([startName, endName]) => {
+        if (active) {
+          setPlaces({
+            start: startName ?? "位置名称暂不可用",
+            end: endName ?? "位置名称暂不可用",
+          });
+        }
+      })
+      .catch(() => {
+        if (active) setPlaces({ start: "位置名称暂不可用", end: "位置名称暂不可用" });
+      });
+
+    return () => { active = false; };
+  }, [startLatitude, startLongitude, endLatitude, endLongitude]);
+
+  return (
+    <div className="drive-endpoint-names" aria-live="polite">
+      <span><i className="endpoint-start-dot" />起点：{places.start}</span>
+      <span><i className="endpoint-end-dot" />终点：{places.end}</span>
+    </div>
+  );
+}
+
 function DriveTrendChart({ trends }: { trends: Trends }) {
   const [metric, setMetric] = useState<"speed" | "battery" | "energy">("speed");
   const chartData = useMemo(() => {
@@ -584,6 +673,7 @@ export default function DriveHistory() {
                         new Date(selectedDrive.started_at)
                       )}
                     </strong>
+                    <DriveEndpointNames points={positions} />
                     <span>
                       {numberLabel(selectedDrive.distance_km)} km
                       <i>·</i>
