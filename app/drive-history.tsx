@@ -358,16 +358,20 @@ function reverseGeocodeCoordinates(
       try {
         const geocoder = new AMap.Geocoder({ radius: 1000, extensions: "all" });
         geocoder.getAddress(coordinates, (status, result) => {
-          if (status !== "complete" || result?.info !== "OK") {
+          const regeo = result?.regeocode;
+          if (String(status).toLowerCase() !== "complete" || !regeo) {
             resolve(null);
             return;
           }
-          const regeo = result.regeocode;
-          resolve(
-            regeo?.pois?.[0]?.name ??
-            regeo?.formattedAddress ??
-            null
-          );
+
+          const firstPoi = Array.isArray(regeo.pois) ? regeo.pois[0] : null;
+          const placeName = firstPoi?.name ?? firstPoi?.title;
+          const formattedAddress =
+            regeo.formattedAddress ??
+            regeo.formatted_address ??
+            regeo.address;
+
+          resolve(placeName ?? formattedAddress ?? null);
         });
       } catch {
         resolve(null);
