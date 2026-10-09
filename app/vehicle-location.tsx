@@ -95,35 +95,31 @@ export default function VehicleLocationCard({ latitude, longitude, updatedAt }: 
         map.add(new AMap.Marker({ position: point, anchor: "bottom-center" }));
         if (active) setMapReady(true);
 
-        const key = process.env.NEXT_PUBLIC_AMAP_KEY;
-        if (!key) {
-          if (active) setAddress("位置已获取");
-          return;
-        }
-
-        try {
-          const query = new URLSearchParams({
-            key,
-            location: `${point.lng},${point.lat}`,
-            output: "JSON",
-            extensions: "all",
-          });
-          const response = await fetch(
-            `/api/tesla/energy-history/_AMapService/v3/geocode/regeo?${query.toString()}`,
-            { cache: "no-store" }
-          );
-          const result = await response.json();
-          const regeo = result?.regeocode;
-          const formatted = regeo?.formatted_address;
-          const placeName = regeo?.pois?.[0]?.name;
-          const displayName = placeName || formatted;
-          if (active) {
-            setAddress(result?.status === "1" && displayName ? displayName : "位置已获取");
-            setAddressDetails(placeName && formatted && placeName !== formatted ? formatted : "");
+        const lng = typeof point.getLng === "function" ? point.getLng() : point.lng;
+        const lat = typeof point.getLat === "function" ? point.getLat() : point.lat;
+        AMap.plugin("AMap.Geocoder", () => {
+          try {
+            const geocoder = new AMap.Geocoder({ radius: 1000, extensions: "all" });
+            geocoder.getAddress([lng, lat], (geocodeStatus: string, result: any) => {
+              const regeo = result?.regeocode;
+              const formatted = regeo?.formattedAddress;
+              const placeName = regeo?.pois?.[0]?.name;
+              const displayName = placeName || formatted;
+              if (active) {
+                setAddress(
+                  geocodeStatus === "complete" && result?.info === "OK" && displayName
+                    ? displayName
+                    : "位置名称暂不可用"
+                );
+                setAddressDetails(
+                  placeName && formatted && placeName !== formatted ? formatted : ""
+                );
+              }
+            });
+          } catch {
+            if (active) setAddress("位置名称暂不可用");
           }
-        } catch {
-          if (active) setAddress("位置已获取");
-        }
+        });
       });
     }).catch(() => {
       if (active) setAddress("地图暂不可用");
