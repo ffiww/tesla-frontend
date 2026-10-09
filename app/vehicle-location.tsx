@@ -102,17 +102,22 @@ export default function VehicleLocationCard({ latitude, longitude, updatedAt }: 
             const geocoder = new AMap.Geocoder({ radius: 1000, extensions: "all" });
             geocoder.getAddress([lng, lat], (geocodeStatus: string, result: any) => {
               const regeo = result?.regeocode;
-              const formatted = regeo?.formattedAddress;
-              const placeName = regeo?.pois?.[0]?.name;
-              const displayName = placeName || formatted;
+              const firstPoi = Array.isArray(regeo?.pois) ? regeo.pois[0] : null;
+              const formatted =
+                regeo?.formattedAddress ??
+                regeo?.formatted_address ??
+                regeo?.address;
+              const placeName = firstPoi?.name ?? firstPoi?.title;
+              const displayName = placeName ?? formatted;
+              const succeeded =
+                String(geocodeStatus).toLowerCase() === "complete" && Boolean(regeo);
+
               if (active) {
-                setAddress(
-                  geocodeStatus === "complete" && result?.info === "OK" && displayName
-                    ? displayName
-                    : "位置名称暂不可用"
-                );
+                setAddress(succeeded && displayName ? displayName : "位置名称暂不可用");
                 setAddressDetails(
-                  placeName && formatted && placeName !== formatted ? formatted : ""
+                  succeeded && placeName && formatted && placeName !== formatted
+                    ? formatted
+                    : ""
                 );
               }
             });
