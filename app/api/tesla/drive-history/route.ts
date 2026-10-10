@@ -156,6 +156,12 @@ export async function GET(
       );
     }
 
+    const before =
+      request.nextUrl.searchParams.get("before");
+    if (before) {
+      backendUrl.searchParams.set("before", before);
+    }
+
     const response = await fetch(
       backendUrl.toString(),
       {
