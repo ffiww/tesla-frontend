@@ -116,3 +116,79 @@
 .drive-endpoint-names span{display:flex;align-items:flex-start;gap:6px;line-height:1.45}
 .endpoint-start-dot,.endpoint-end-dot{flex:0 0 auto;width:8px;height:8px;margin-top:4px;border:2px solid #1d9b62;border-radius:50%;background:#fff}
 .endpoint-end-dot{border-color:#e82127}
+
+
+/* Dashboard compact controls and consolidated current charge status */
+.vehicle-heading{align-items:center;margin-bottom:22px}
+.vehicle-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vehicle-actions .refresh-button,.vehicle-actions .wake-button{min-height:38px;padding:8px 13px;font-size:.82rem;box-shadow:none}
+.wake-button{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #f1c8ca;border-radius:999px;background:#fff5f5;color:#b91f25;font:inherit;font-weight:650;cursor:pointer}
+.wake-button:disabled{opacity:.65;cursor:wait}
+.wake-error{margin:-12px 0 18px;color:#ba252b;font-size:.82rem;text-align:right}
+.hero-grid{grid-template-columns:minmax(270px,.78fr) minmax(0,1.22fr);align-items:stretch}
+.quick-check-card{display:flex;flex-direction:column;gap:14px}
+.quick-check-card .section-heading{align-items:center}
+.quick-check-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 18px;margin:0;padding:0;list-style:none}
+.quick-check-list li{display:flex;justify-content:space-between;gap:8px;border-top:1px solid #eceef0;padding-top:10px;font-size:.78rem}
+.quick-check-list li span{color:#7a7e85}
+.quick-check-list li strong{font-weight:650;text-align:right}
+.current-charge-banner{display:grid;grid-template-columns:auto minmax(100px,1.2fr) repeat(2,minmax(100px,.8fr));align-items:center;gap:13px;padding:14px 16px;border:1px solid #f4d0d2;border-radius:15px;background:linear-gradient(110deg,#fff7f7,#fff)}
+.current-charge-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#fee9ea;color:#e82127}
+.current-charge-main,.current-charge-meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+.current-charge-main span,.current-charge-meta span{font-size:.7rem;color:#80848a}
+.current-charge-main strong{font-size:.95rem;color:#272a2f}
+.current-charge-meta strong{font-size:.8rem;color:#3d4147;white-space:nowrap}
+.vehicle-info-row{display:grid;grid-template-columns:minmax(0,1.35fr) repeat(3,minmax(0,1fr));gap:14px;align-items:stretch;margin-top:18px}
+.vehicle-location-slot{min-width:0}
+.vehicle-location-slot .vehicle-location-card{height:100%;min-height:178px;border-radius:18px}
+.vehicle-location-slot .vehicle-location-copy{max-width:90%;padding:21px}
+.vehicle-info-row .metric-grid{display:contents}
+.vehicle-info-row .metric{min-width:0;min-height:178px;padding:17px;justify-content:space-between;border-radius:18px}
+.vehicle-info-row .metric strong{font-size:.96rem;overflow-wrap:anywhere}
+.drive-daily-summary{margin:4px 0 20px;padding:16px 17px;border:1px solid #e7e9ec;border-radius:16px;background:#fafbfc}
+.drive-daily-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:12px}
+.drive-daily-heading .eyebrow{margin-bottom:4px}
+.drive-daily-heading h3{margin:0;font-size:1rem}
+.drive-daily-heading small{color:#8a8e95;font-size:.72rem}
+.drive-day-list{display:grid;grid-auto-columns:minmax(220px,1fr);grid-auto-flow:column;gap:10px;overflow-x:auto;padding-bottom:3px}
+.drive-day-card{min-width:0;padding:12px 13px;border:1px solid #e8eaed;border-radius:13px;background:#fff}
+.drive-day-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.drive-day-title strong{font-size:.86rem}
+.drive-day-title span{color:#888c93;font-size:.7rem;white-space:nowrap}
+.drive-day-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.drive-day-metrics span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.drive-day-metrics small{color:#888c93;font-size:.66rem}
+.drive-day-metrics strong{font-size:.75rem;white-space:nowrap}
+.charge-session-detail{margin-top:18px;padding:15px;border:1px solid #e7e9ec;border-radius:16px;background:#fbfbfc}
+.charge-session-detail-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.charge-session-detail-heading>div{display:flex;flex-direction:column;gap:4px}
+.charge-session-detail-heading strong{font-size:.92rem}
+.charge-session-detail-heading span{color:#858991;font-size:.74rem}
+.charge-session-detail-heading select{max-width:250px;padding:8px 10px;border:1px solid #dfe1e5;border-radius:10px;background:#fff;color:#34373c;font:inherit;font-size:.75rem}
+.charge-session-chart{height:220px}
+.energy-history-note{color:#858991;font-size:.72rem;line-height:1.5}
+@media(max-width:900px){
+  .vehicle-info-row{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .vehicle-location-slot{grid-column:1/-1}
+  .vehicle-location-slot .vehicle-location-card{min-height:210px}
+  .current-charge-banner{grid-template-columns:auto 1fr 1fr}
+  .current-charge-meta:last-child{grid-column:2/-1}
+}
+@media(max-width:640px){
+  .vehicle-heading{align-items:flex-start}
+  .vehicle-actions{justify-content:flex-end}
+  .vehicle-actions .refresh-button,.vehicle-actions .wake-button{padding:8px 10px;font-size:.72rem}
+  .hero-grid{grid-template-columns:1fr}
+  .current-charge-banner{grid-template-columns:auto 1fr}
+  .current-charge-meta:last-child{grid-column:2}
+  .quick-check-list{grid-template-columns:1fr}
+  .vehicle-info-row{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .vehicle-location-slot{grid-column:1/-1}
+  .vehicle-info-row .metric{min-height:128px;padding:13px}
+  .vehicle-info-row .metric strong{font-size:.9rem}
+  .drive-daily-summary{padding:13px}
+  .drive-day-list{grid-auto-columns:minmax(220px,82%)}
+  .charge-session-detail{padding:11px}
+  .charge-session-detail-heading{align-items:flex-start;flex-direction:column}
+  .charge-session-detail-heading select{max-width:100%;width:100%}
+}
