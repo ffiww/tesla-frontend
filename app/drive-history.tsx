@@ -524,7 +524,6 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
                 minTickGap={32} tick={{ fontSize: 11, fill: "#858991" }} />
               <YAxis yAxisId="left" width={55} domain={leftDomain} allowDataOverflow
                 tickFormatter={(value) => formatAxisTick(Number(value), metric === "speed" ? "km/h" : metric === "battery" ? "%" : "Wh")}
-                tickFormatter={(value) => formatAxisTick(Number(value), metric === "speed" ? "km/h" : metric === "battery" ? "%" : "Wh")}
                 tick={{ fontSize: 11, fill: "#858991" }} />
               {metric === "energy" && !hiddenSeries.includes("odometer") && (
                 <YAxis yAxisId="right" orientation="right" width={55} domain={rightDomain} allowDataOverflow
