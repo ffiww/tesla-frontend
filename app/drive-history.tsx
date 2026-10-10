@@ -86,6 +86,17 @@ function numberLabel(value: number | null | undefined, digits = 1) {
   return value == null ? "—" : value.toFixed(digits);
 }
 
+function percentLabel(value: number | null | undefined) {
+  return value == null ? "—" : `${numberLabel(value, 1)}%`;
+}
+
+function batteryConsumptionPercent(drive: Pick<Drive, "start_battery_level" | "end_battery_level">) {
+  if (drive.start_battery_level == null || drive.end_battery_level == null) {
+    return null;
+  }
+  return drive.start_battery_level - drive.end_battery_level;
+}
+
 function adjustedChartDomain(
   values: number[],
   minimum = 0,
@@ -910,9 +921,7 @@ export default function DriveHistory() {
                     {durationLabel(drive.started_at, drive.ended_at)}
                   </span>
                   <span className="drive-list-battery">
-                    起始电量 {numberLabel(drive.start_battery_level, 1)}%
-                    <i>·</i>
-                    结束电量 {numberLabel(drive.end_battery_level, 1)}%
+                    耗电量 {percentLabel(batteryConsumptionPercent(drive))}
                   </span>
                 </button>
               );
@@ -958,12 +967,11 @@ export default function DriveHistory() {
 
                 <div className="drive-extra-metrics">
                   <span>
-                    起始电量{" "}
-                    <strong>{numberLabel(selectedDrive.start_battery_level, 1)}%</strong>
-                  </span>
-                  <span>
-                    结束电量{" "}
-                    <strong>{numberLabel(selectedDrive.end_battery_level, 1)}%</strong>
+                    电量消耗{" "}
+                    <strong>
+                      {percentLabel(batteryConsumptionPercent(selectedDrive))}，
+                      {percentLabel(selectedDrive.start_battery_level)} → {percentLabel(selectedDrive.end_battery_level)}
+                    </strong>
                   </span>
                   <span>
                     耗电{" "}
