@@ -14,7 +14,7 @@
 .drive-history-heading p:not(.eyebrow){margin:7px 0 0;color:#71757c;font-size:.9rem}
 .drive-history-heading>svg{color:#8a8e95}
 .drive-history-layout{display:grid;grid-template-columns:minmax(210px,.32fr) minmax(0,1fr);gap:18px}
-.drive-list{display:flex;flex-direction:column;gap:8px;max-height:420px;overflow:auto;padding-right:3px}
+.drive-list{display:flex;flex-direction:column;gap:8px;max-height:min(72vh,760px);min-height:480px;overflow:auto;padding-right:3px}
 .drive-list-item{display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px 14px;border:1px solid #e5e7ea;border-radius:13px;background:#fff;color:#25282d;text-align:left;font:inherit;cursor:pointer}
 .drive-list-item:hover,.drive-list-item.active{border-color:#e82127;background:#fff7f7}
 .drive-list-item strong{font-size:.9rem}
@@ -217,3 +217,10 @@
 
 .vehicle-sleep-pill{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #e2e4e8;border-radius:999px;background:#f7f8f9;color:#666b72;font-size:.75rem;font-weight:650;white-space:nowrap}
 .vehicle-sleep-pill i{width:7px;height:7px;border-radius:50%;background:#898e95}
+
+.chart-legend{display:flex;align-items:center;flex-wrap:wrap;gap:7px 14px;margin:9px 0 2px}
+.chart-legend-item{display:inline-flex;align-items:center;gap:7px;padding:5px 1px;border:0;background:transparent;color:#6f737a;font:inherit;font-size:.73rem;cursor:pointer;transition:opacity .15s,color .15s}
+.chart-legend-item i{display:inline-block;width:14px;height:3px;border-radius:999px}
+.chart-legend-item:not(.active){opacity:.42}
+.chart-legend-item:hover{color:#272a2f}
+.drive-list{scrollbar-width:thin}
