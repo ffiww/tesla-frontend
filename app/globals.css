@@ -192,3 +192,6 @@
   .charge-session-detail-heading{align-items:flex-start;flex-direction:column}
   .charge-session-detail-heading select{max-width:100%;width:100%}
 }
+
+.vehicle-sleep-pill{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #e2e4e8;border-radius:999px;background:#f7f8f9;color:#666b72;font-size:.75rem;font-weight:650;white-space:nowrap}
+.vehicle-sleep-pill i{width:7px;height:7px;border-radius:50%;background:#898e95}
