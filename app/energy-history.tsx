@@ -32,11 +32,18 @@ type ChargingSession = {
   charging_type: string | null;
   location_name: string | null;
 };
+type ChargePoint = {
+  charging_session_id: string | null;
+  recorded_at: string;
+  battery_level: number | null;
+  charge_power_kw: number | null;
+};
 type HistoryResponse = {
   success: boolean;
   battery?: { BatteryLevel?: Point[]; Soc?: Point[] };
   drives?: Drive[];
   charging_sessions?: ChargingSession[];
+  charge_points?: ChargePoint[];
   error?: string;
 };
 
@@ -58,6 +65,7 @@ export default function EnergyHistory() {
   const [tab, setTab] = useState<Tab>("battery");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedChargeSessionId, setSelectedChargeSessionId] = useState<string>("");
 
   useEffect(() => {
     let active = true;
@@ -119,6 +127,28 @@ export default function EnergyHistory() {
       })),
     [history]
   );
+
+  const chargePoints = useMemo(
+    () =>
+      (history?.charge_points ?? [])
+        .filter((point) => point.charging_session_id === selectedChargeSessionId)
+        .map((point) => ({
+          timestamp: new Date(point.recorded_at).getTime(),
+          battery: point.battery_level,
+          power: point.charge_power_kw,
+        }))
+        .filter((point) => Number.isFinite(point.timestamp))
+        .sort((a, b) => a.timestamp - b.timestamp),
+    [history, selectedChargeSessionId]
+  );
+
+  useEffect(() => {
+    const sessions = history?.charging_sessions ?? [];
+    if (!sessions.length) return;
+    if (!sessions.some((session) => session.id === selectedChargeSessionId)) {
+      setSelectedChargeSessionId(sessions[sessions.length - 1].id);
+    }
+  }, [history, selectedChargeSessionId]);
 
   const tabInfo = {
     battery: { label: "电量", icon: BatteryCharging },
@@ -242,6 +272,65 @@ export default function EnergyHistory() {
             </ComposedChart>
           </ResponsiveContainer>
           <p className="energy-history-note">按充电开始时间排列；显示每次充入电量和峰值功率。</p>
+          <div className="charge-session-detail">
+            <div className="charge-session-detail-heading">
+              <div>
+                <strong>单次充电变化</strong>
+                <span>查看所选会话的电量与充电功率</span>
+              </div>
+              <select
+                aria-label="选择充电会话"
+                value={selectedChargeSessionId}
+                onChange={(event) => setSelectedChargeSessionId(event.target.value)}
+              >
+                {chargeData.map((session) => (
+                  <option key={session.id} value={session.id}>
+                    {dateTime.format(new Date(session.started_at))}
+                    {session.charging_type ? ` · ${session.charging_type}` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {chargePoints.length < 2 ? (
+              <div className="energy-history-empty">这次充电没有足够的过程采样点。</div>
+            ) : (
+              <>
+                <div className="energy-history-chart charge-session-chart">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={chargePoints} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+                      <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="timestamp"
+                        tickFormatter={(value) =>
+                          new Intl.DateTimeFormat("zh-CN", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }).format(new Date(value))
+                        }
+                        minTickGap={28}
+                        tick={{ fontSize: 10, fill: "#858991" }}
+                      />
+                      <YAxis yAxisId="battery" domain={[0, 100]} unit="%" tick={{ fontSize: 10, fill: "#858991" }} />
+                      <YAxis yAxisId="power" orientation="right" unit=" kW" tick={{ fontSize: 10, fill: "#858991" }} />
+                      <Tooltip
+                        labelFormatter={(value) => dateTime.format(new Date(value))}
+                        formatter={(value, name) => [
+                          value == null ? "—" : Number(value).toFixed(1),
+                          name === "battery" ? "电池电量 (%)" : "充电功率 (kW)",
+                        ]}
+                      />
+                      <Line yAxisId="battery" type="monotone" dataKey="battery" name="battery" stroke="#e82127" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                      <Line yAxisId="power" type="monotone" dataKey="power" name="power" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+                <div className="energy-chart-legend">
+                  <span><i className="legend-battery" />电池电量</span>
+                  <span><i className="legend-soc" />充电功率</span>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
     </article>
