@@ -8,6 +8,7 @@ import {
   ComposedChart,
   Line,
   LineChart,
+  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
