@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { BatteryCharging, Zap } from "lucide-react";
 import {
   Bar,
   CartesianGrid,
   ComposedChart,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -84,6 +83,53 @@ function adjustedDomain(
     : [domainLow, Math.min(maximum, domainLow + 1)];
 }
 
+function formatAxisTick(value: number, unit = "") {
+  if (!Number.isFinite(Number(value))) return "—";
+  const number = Number(value);
+  const absolute = Math.abs(number);
+  const compact = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: amount >= 100 ? 0 : amount >= 10 ? 1 : 2,
+      useGrouping: false,
+    }).format(amount);
+  let label: string;
+  if (absolute >= 1_000_000) label = `${compact(number / 1_000_000)}M`;
+  else if (absolute >= 1_000) label = `${compact(number / 1_000)}k`;
+  else label = compact(number);
+  return unit ? `${label} ${unit}` : label;
+}
+
+function ClickableChartLegend({
+  items,
+  hidden,
+  onToggle,
+}: {
+  items: { key: string; label: string; color: string }[];
+  hidden: string[];
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <div className="chart-legend" aria-label="图表指标显示开关">
+      {items.map((item) => {
+        const active = !hidden.includes(item.key);
+        return (
+          <button
+            key={item.key}
+            type="button"
+            className={active ? "chart-legend-item active" : "chart-legend-item"}
+            aria-pressed={active}
+            onClick={() => onToggle(item.key)}
+          >
+            <i style={{ backgroundColor: item.color }} />
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+
 function sessionDuration(session: ChargingSession) {
   if (!session.ended_at) return "充电中";
   const start = new Date(session.started_at).getTime();
@@ -100,6 +146,12 @@ export default function EnergyHistory() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedChargeSessionId, setSelectedChargeSessionId] = useState("");
+  const [hiddenBatterySeries, setHiddenBatterySeries] = useState<string[]>([]);
+  const [hiddenDriveSeries, setHiddenDriveSeries] = useState<string[]>([]);
+  const [hiddenChargeDailySeries, setHiddenChargeDailySeries] = useState<string[]>([]);
+  const [hiddenChargeSessionSeries, setHiddenChargeSessionSeries] = useState<string[]>([]);
+  const toggle = (setter: Dispatch<SetStateAction<string[]>>, key: string) =>
+    setter((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
 
   useEffect(() => {
     let active = true;
@@ -219,23 +271,22 @@ export default function EnergyHistory() {
     [chargeData, selectedChargeSessionId]
   );
   const batteryValues = batteryData.flatMap((point) =>
-    [point.battery, point.soc].filter((value): value is number =>
-      typeof value === "number" && Number.isFinite(value)
-    )
+    [hiddenBatterySeries.includes("battery") ? null : point.battery, hiddenBatterySeries.includes("soc") ? null : point.soc]
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
   );
   const batteryDomain = adjustedDomain(batteryValues, 0, 100);
-  const driveEnergyDomain = adjustedDomain(driveDailyData.map((item) => item.energyKwh));
-  const chargeEnergyDomain = adjustedDomain(chargeDailyData.map((item) => item.energyKwh));
+  const driveEnergyDomain = adjustedDomain(hiddenDriveSeries.includes("energyKwh") ? [] : driveDailyData.map((item) => item.energyKwh));
+  const chargeEnergyDomain = adjustedDomain(hiddenChargeDailySeries.includes("energyKwh") ? [] : chargeDailyData.map((item) => item.energyKwh));
   const chargePowerDomain = adjustedDomain(
-    chargeDailyData.map((item) => item.maxPowerKw ?? 0)
+    hiddenChargeDailySeries.includes("maxPowerKw") ? [] : chargeDailyData.map((item) => item.maxPowerKw ?? 0)
   );
   const sessionBatteryDomain = adjustedDomain(
-    chargePoints.map((point) => point.battery).filter((value): value is number => value != null),
+    chargePoints.map((point) => point.battery).filter((value): value is number => value != null && !hiddenChargeSessionSeries.includes("battery")),
     0,
     100
   );
   const sessionPowerDomain = adjustedDomain(
-    chargePoints.map((point) => point.power).filter((value): value is number => value != null)
+    chargePoints.map((point) => point.power).filter((value): value is number => value != null && !hiddenChargeSessionSeries.includes("power"))
   );
 
   return (
@@ -276,7 +327,7 @@ export default function EnergyHistory() {
                           minTickGap={28}
                           tick={{ fontSize: 10, fill: "#858991" }}
                         />
-                        <YAxis domain={batteryDomain} allowDataOverflow unit="%" tick={{ fontSize: 10, fill: "#858991" }} />
+                        {(!hiddenBatterySeries.includes("battery") || !hiddenBatterySeries.includes("soc")) && <YAxis domain={batteryDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "%")} tick={{ fontSize: 10, fill: "#858991" }} />}
                         <Tooltip
                           labelFormatter={(value) => dateTime.format(new Date(value))}
                           formatter={(value, name) => [
@@ -284,14 +335,15 @@ export default function EnergyHistory() {
                             name === "battery" ? "电池电量" : "SOC",
                           ]}
                         />
-                        <Line type="monotone" dataKey="battery" name="battery" stroke="#e82127" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
-                        <Line type="monotone" dataKey="soc" name="soc" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                        {!hiddenBatterySeries.includes("battery") && <Line type="monotone" dataKey="battery" name="battery" stroke="#e82127" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
+                        {!hiddenBatterySeries.includes("soc") && <Line type="monotone" dataKey="soc" name="soc" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
                       </LineChart>
                     </ResponsiveContainer>
-                    <div className="energy-chart-legend">
-                      <span><i className="legend-battery" />电池电量</span>
-                      <span><i className="legend-soc" />SOC</span>
-                    </div>
+                    <ClickableChartLegend
+                      items={[{ key: "battery", label: "电池电量 · %", color: "#e82127" }, { key: "soc", label: "SOC · %", color: "#3186c8" }]}
+                      hidden={hiddenBatterySeries}
+                      onToggle={(key) => toggle(setHiddenBatterySeries, key)}
+                    />
                   </div>
                 )}
               </div>
@@ -314,14 +366,15 @@ export default function EnergyHistory() {
                           minTickGap={24}
                           tick={{ fontSize: 10, fill: "#858991" }}
                         />
-                        <YAxis yAxisId="energy" domain={driveEnergyDomain} allowDataOverflow unit=" kWh" tick={{ fontSize: 10, fill: "#858991" }} />
+                        {!hiddenDriveSeries.includes("energyKwh") && <YAxis yAxisId="energy" domain={driveEnergyDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "kWh")} tick={{ fontSize: 10, fill: "#858991" }} />}
                         <Tooltip
                           labelFormatter={(value) => `日期：${dateOnly.format(new Date(`${value}T12:00:00`))}`}
                           formatter={(value) => [`${Number(value).toFixed(2)} kWh`, "行程耗电"]}
                         />
-                        <Bar yAxisId="energy" dataKey="energyKwh" name="energyKwh" fill="#e82127" radius={[5, 5, 0, 0]} />
+                        {!hiddenDriveSeries.includes("energyKwh") && <Bar yAxisId="energy" dataKey="energyKwh" name="energyKwh" fill="#e82127" radius={[5, 5, 0, 0]} />}
                       </ComposedChart>
                     </ResponsiveContainer>
+                    <ClickableChartLegend items={[{ key: "energyKwh", label: "行程耗电 · kWh", color: "#e82127" }]} hidden={hiddenDriveSeries} onToggle={(key) => toggle(setHiddenDriveSeries, key)} />
                     <p className="energy-history-note">按行程日期汇总；每个日期统计该日所有行程的能耗。</p>
                   </div>
                 )}
@@ -355,8 +408,8 @@ export default function EnergyHistory() {
                           minTickGap={24}
                           tick={{ fontSize: 10, fill: "#858991" }}
                         />
-                        <YAxis yAxisId="energy" domain={chargeEnergyDomain} allowDataOverflow unit=" kWh" tick={{ fontSize: 10, fill: "#858991" }} />
-                        <YAxis yAxisId="power" orientation="right" domain={chargePowerDomain} allowDataOverflow unit=" kW" tick={{ fontSize: 10, fill: "#858991" }} />
+                        {!hiddenChargeDailySeries.includes("energyKwh") && <YAxis yAxisId="energy" domain={chargeEnergyDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "kWh")} tick={{ fontSize: 10, fill: "#858991" }} />}
+                        {!hiddenChargeDailySeries.includes("maxPowerKw") && <YAxis yAxisId="power" orientation="right" domain={chargePowerDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "kW")} tick={{ fontSize: 10, fill: "#858991" }} />}
                         <Tooltip
                           labelFormatter={(value) => `充电日期：${dateOnly.format(new Date(`${value}T12:00:00`))}`}
                           formatter={(value, name) => [
@@ -364,12 +417,12 @@ export default function EnergyHistory() {
                             name === "energyKwh" ? "当日充入电量" : "当日最高功率",
                           ]}
                         />
-                        <Bar yAxisId="energy" dataKey="energyKwh" name="energyKwh" fill="#e82127" radius={[5, 5, 0, 0]} />
-                        <Line yAxisId="power" dataKey="maxPowerKw" name="maxPowerKw" stroke="#3186c8" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />
-                        <Legend formatter={(value) => value === "energyKwh" ? "当日充入电量 · kWh" : "当日最高功率 · kW"} />
+                        {!hiddenChargeDailySeries.includes("energyKwh") && <Bar yAxisId="energy" dataKey="energyKwh" name="energyKwh" fill="#e82127" radius={[5, 5, 0, 0]} />}
+                        {!hiddenChargeDailySeries.includes("maxPowerKw") && <Line yAxisId="power" dataKey="maxPowerKw" name="maxPowerKw" stroke="#3186c8" strokeWidth={2} dot={{ r: 3 }} connectNulls isAnimationActive={false} />}
                       </ComposedChart>
                     </ResponsiveContainer>
                   </div>
+                  <ClickableChartLegend items={[{ key: "energyKwh", label: "当日充入电量 · kWh", color: "#e82127" }, { key: "maxPowerKw", label: "当日最高功率 · kW", color: "#3186c8" }]} hidden={hiddenChargeDailySeries} onToggle={(key) => toggle(setHiddenChargeDailySeries, key)} />
                   <p className="energy-history-note">按自然日汇总；柱形为充入电量，曲线为峰值功率。</p>
                 </div>
 
@@ -425,8 +478,8 @@ export default function EnergyHistory() {
                                     minTickGap={28}
                                     tick={{ fontSize: 10, fill: "#858991" }}
                                   />
-                                  <YAxis yAxisId="battery" domain={sessionBatteryDomain} allowDataOverflow unit="%" tick={{ fontSize: 10, fill: "#858991" }} />
-                                  <YAxis yAxisId="power" orientation="right" domain={sessionPowerDomain} allowDataOverflow unit=" kW" tick={{ fontSize: 10, fill: "#858991" }} />
+                                  {!hiddenChargeSessionSeries.includes("battery") && <YAxis yAxisId="battery" domain={sessionBatteryDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "%")} tick={{ fontSize: 10, fill: "#858991" }} />}
+                                  {!hiddenChargeSessionSeries.includes("power") && <YAxis yAxisId="power" orientation="right" domain={sessionPowerDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "kW")} tick={{ fontSize: 10, fill: "#858991" }} />}
                                   <Tooltip
                                     labelFormatter={(value) => dateTime.format(new Date(value))}
                                     formatter={(value, name) => [
@@ -434,12 +487,13 @@ export default function EnergyHistory() {
                                       name === "battery" ? "电池电量" : "充电功率",
                                     ]}
                                   />
-                                  <Line yAxisId="battery" type="monotone" dataKey="battery" name="battery" stroke="#e82127" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
-                                  <Line yAxisId="power" type="monotone" dataKey="power" name="power" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
-                                  <Legend formatter={(value) => value === "battery" ? "电池电量 · %" : "充电功率 · kW"} />
+                                  {!hiddenChargeSessionSeries.includes("battery") && <Line yAxisId="battery" type="monotone" dataKey="battery" name="battery" stroke="#e82127" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
+                                  {!hiddenChargeSessionSeries.includes("power") && <Line yAxisId="power" type="monotone" dataKey="power" name="power" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
+
                                 </LineChart>
                               </ResponsiveContainer>
                             </div>
+                            <ClickableChartLegend items={[{ key: "battery", label: "电池电量 · %", color: "#e82127" }, { key: "power", label: "充电功率 · kW", color: "#3186c8" }]} hidden={hiddenChargeSessionSeries} onToggle={(key) => toggle(setHiddenChargeSessionSeries, key)} />
                           </>
                         )}
                       </>
