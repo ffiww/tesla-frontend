@@ -8,7 +8,6 @@ import {
   ComposedChart,
   Line,
   LineChart,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -104,6 +103,53 @@ function adjustedChartDomain(
     : [domainLow, Math.min(maximum, domainLow + 1)];
 }
 
+function formatAxisTick(value: number, unit = "") {
+  if (!Number.isFinite(Number(value))) return "—";
+  const number = Number(value);
+  const absolute = Math.abs(number);
+  const compact = (amount: number) =>
+    new Intl.NumberFormat("en-US", {
+      maximumFractionDigits: amount >= 100 ? 0 : amount >= 10 ? 1 : 2,
+      useGrouping: false,
+    }).format(amount);
+  let label: string;
+  if (absolute >= 1_000_000) label = `${compact(number / 1_000_000)}M`;
+  else if (absolute >= 1_000) label = `${compact(number / 1_000)}k`;
+  else label = compact(number);
+  return unit ? `${label} ${unit}` : label;
+}
+
+function ClickableChartLegend({
+  items,
+  hidden,
+  onToggle,
+}: {
+  items: { key: string; label: string; color: string }[];
+  hidden: string[];
+  onToggle: (key: string) => void;
+}) {
+  return (
+    <div className="chart-legend" aria-label="图表指标显示开关">
+      {items.map((item) => {
+        const active = !hidden.includes(item.key);
+        return (
+          <button
+            key={item.key}
+            type="button"
+            className={active ? "chart-legend-item active" : "chart-legend-item"}
+            aria-pressed={active}
+            onClick={() => onToggle(item.key)}
+          >
+            <i style={{ backgroundColor: item.color }} />
+            {item.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+
 function DailyMetricChart({
   data,
   dataKey,
@@ -143,7 +189,7 @@ function DailyMetricChart({
               width={64}
               domain={domain}
               allowDataOverflow
-              tickFormatter={(value) => Number(value).toFixed(precision)}
+              tickFormatter={(value) => formatAxisTick(Number(value), unit)}
               tick={{ fontSize: 10, fill: "#858991" }}
             />
             <Tooltip
@@ -379,6 +425,10 @@ function DriveEndpointNames({
 
 function DriveTrendChart({ trends }: { trends: Trends }) {
   const [metric, setMetric] = useState<"speed" | "battery" | "energy">("speed");
+  const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
+  const toggleSeries = (key: string) => setHiddenSeries((current) =>
+    current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
+  );
   const chartData = useMemo(() => {
     const values = new Map<number, Record<string, any>>();
     const config = [
@@ -429,9 +479,9 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
   };
   const rightAxisKeys = metric === "energy" ? ["odometer"] : [];
   const leftDomain = useMemo(() => {
+    const leftKeys = current.keys.filter((key) => !rightAxisKeys.includes(key) && !hiddenSeries.includes(key));
     const values = chartData.flatMap((point) =>
-      current.keys
-        .filter((key) => !rightAxisKeys.includes(key))
+      leftKeys
         .map((key) => point[key])
         .filter((value): value is number => typeof value === "number")
     );
@@ -440,14 +490,14 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
       0,
       metric === "battery" ? 100 : Number.POSITIVE_INFINITY
     );
-  }, [chartData, current.keys, metric, rightAxisKeys]);
+  }, [chartData, current.keys, metric, rightAxisKeys, hiddenSeries]);
   const rightDomain = useMemo(() => {
-    const values = chartData
+    const values = hiddenSeries.includes("odometer") ? [] : chartData
       .map((point) => point.odometer)
       .filter((value): value is number => typeof value === "number");
     return adjustedChartDomain(values);
-  }, [chartData]);
-  const hasData = chartData.some((point) => current.keys.some((key) => point[key] != null));
+  }, [chartData, hiddenSeries]);
+  const hasData = chartData.some((point) => current.keys.some((key) => !hiddenSeries.includes(key) && point[key] != null));
 
   return (
     <div className="drive-trend-card">
@@ -473,21 +523,22 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
                 tickFormatter={(value) => new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value))}
                 minTickGap={32} tick={{ fontSize: 11, fill: "#858991" }} />
               <YAxis yAxisId="left" width={55} domain={leftDomain} allowDataOverflow
+                tickFormatter={(value) => formatAxisTick(Number(value), metric === "speed" ? "km/h" : metric === "battery" ? "%" : "Wh")}
+                tickFormatter={(value) => formatAxisTick(Number(value), metric === "speed" ? "km/h" : metric === "battery" ? "%" : "Wh")}
                 tick={{ fontSize: 11, fill: "#858991" }} />
-              {metric === "energy" && (
+              {metric === "energy" && !hiddenSeries.includes("odometer") && (
                 <YAxis yAxisId="right" orientation="right" width={55} domain={rightDomain} allowDataOverflow
+                  tickFormatter={(value) => formatAxisTick(Number(value), "km")}
                   tick={{ fontSize: 11, fill: "#858991" }} />
               )}
               <Tooltip
                 position={{ x: 62, y: 6 }}
                 cursor={{ stroke: "#8d9299", strokeDasharray: "4 4" }}
                 labelFormatter={(value) => dateFormatter.format(new Date(value))}
-                formatter={(value, name) => [Number(value).toFixed(2), labels[String(name)] ?? String(name)]}
+                formatter={(value, name) => [formatAxisTick(Number(value), rightAxisKeys.includes(String(name)) ? "km" : metric === "speed" ? "km/h" : metric === "battery" ? "%" : "Wh"), labels[String(name)] ?? String(name)]}
                 contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
               />
-              <Legend verticalAlign="top" height={28}
-                formatter={(value) => labels[String(value)] ?? String(value)} />
-              {current.keys.map((key) => (
+              {current.keys.filter((key) => !hiddenSeries.includes(key)).map((key) => (
                 <Line key={key} yAxisId={rightAxisKeys.includes(key) ? "right" : "left"}
                   type="monotone" dataKey={key} name={key}
                   stroke={key === "soc" || key === "odometer" ? "#3186c8" : "#e82127"}
@@ -497,6 +548,11 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
           </ResponsiveContainer>
         </div>
       )}
+      <ClickableChartLegend
+        items={current.keys.map((key) => ({ key, label: labels[key], color: key === "soc" || key === "odometer" ? "#3186c8" : "#e82127" }))}
+        hidden={hiddenSeries}
+        onToggle={toggleSeries}
+      />
       <p className="route-note">
         曲线来自本次行程时间范围内收到的 Tesla 遥测；速度按 mph 换算为 km/h，能耗和里程显示行程内变化量。
       </p>
@@ -519,6 +575,10 @@ function DriveDailyTrendChart({
   data: DailySummaryPoint[];
   width: number;
 }) {
+  const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
+  const toggleSeries = (key: string) => setHiddenSeries((current) =>
+    current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
+  );
   const distanceDomain = adjustedChartDomain(data.map((item) => item.distanceKm));
   const durationDomain = adjustedChartDomain(data.map((item) => item.durationMinutes));
   const energyDomain = adjustedChartDomain(data.map((item) => item.energyKwh));
@@ -539,30 +599,33 @@ function DriveDailyTrendChart({
             minTickGap={24}
             tick={{ fontSize: 10, fill: "#858991" }}
           />
-          <YAxis
+          {!hiddenSeries.includes("distanceKm") && <YAxis
             yAxisId="distance"
             width={54}
             domain={distanceDomain}
             allowDataOverflow
+            tickFormatter={(value) => formatAxisTick(Number(value), "km")}
             tick={{ fontSize: 10, fill: "#e82127" }}
-          />
-          <YAxis
+          />}
+          {!hiddenSeries.includes("durationMinutes") && <YAxis
             yAxisId="duration"
             orientation="right"
             width={54}
             domain={durationDomain}
             allowDataOverflow
+            tickFormatter={(value) => formatAxisTick(Number(value), "分钟")}
             tick={{ fontSize: 10, fill: "#3186c8" }}
-          />
-          <YAxis
+          />}
+          {!hiddenSeries.includes("energyKwh") && <YAxis
             yAxisId="energy"
             orientation="right"
             mirror
             width={54}
             domain={energyDomain}
             allowDataOverflow
+            tickFormatter={(value) => formatAxisTick(Number(value), "kWh")}
             tick={{ fontSize: 10, fill: "#d99019" }}
-          />
+          />}
           <Tooltip
             labelFormatter={(value) => `日期：${dayFormatter.format(new Date(`${value}T12:00:00`))}`}
             formatter={(value, name) => {
@@ -573,12 +636,35 @@ function DriveDailyTrendChart({
             }}
             contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
           />
-          <Legend formatter={(value) => labels[String(value)] ?? String(value)} />
-          <Line yAxisId="distance" type="monotone" dataKey="distanceKm" name="distanceKm" stroke="#e82127" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
-          <Line yAxisId="duration" type="monotone" dataKey="durationMinutes" name="durationMinutes" stroke="#3186c8" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
-          <Line yAxisId="energy" type="monotone" dataKey="energyKwh" name="energyKwh" stroke="#d99019" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+          {[
+            ["distanceKm", "#e82127"],
+            ["durationMinutes", "#3186c8"],
+            ["energyKwh", "#d99019"],
+          ].filter(([key]) => !hiddenSeries.includes(String(key))).map(([key, color]) => (
+            <Line
+              key={key}
+              yAxisId={String(key) === "distanceKm" ? "distance" : String(key) === "durationMinutes" ? "duration" : "energy"}
+              type="monotone"
+              dataKey={key}
+              name={key}
+              stroke={color}
+              strokeWidth={2.5}
+              dot={{ r: 2.5 }}
+              activeDot={{ r: 5 }}
+              isAnimationActive={false}
+            />
+          ))}
         </ComposedChart>
       </ResponsiveContainer>
+      <ClickableChartLegend
+        items={[
+          { key: "distanceKm", label: labels.distanceKm, color: "#e82127" },
+          { key: "durationMinutes", label: labels.durationMinutes, color: "#3186c8" },
+          { key: "energyKwh", label: labels.energyKwh, color: "#d99019" },
+        ]}
+        hidden={hiddenSeries}
+        onToggle={toggleSeries}
+      />
     </div>
   );
 }
