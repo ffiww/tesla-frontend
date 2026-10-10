@@ -511,6 +511,12 @@ export default function Dashboard({
           </div>
           <div className="vehicle-actions">
             {connected && data?.sleeping && (
+              <span className="vehicle-sleep-pill">
+                <i />
+                车辆休眠
+              </span>
+            )}
+            {connected && data?.sleeping && (
               <button
                 className="wake-button"
                 type="button"
