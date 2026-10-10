@@ -474,7 +474,19 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
         values.get(timestamp)![key] = value;
       }
     }
-    return [...values.values()].sort((a, b) => a.timestamp - b.timestamp);
+    const ordered = [...values.values()].sort((a, b) => a.timestamp - b.timestamp);
+    const latest: Record<string, number | undefined> = {};
+    return ordered.map((point) => {
+      const filled = { ...point };
+      for (const key of ["battery", "soc", "energy", "odometer"]) {
+        if (typeof filled[key] === "number") {
+          latest[key] = filled[key];
+        } else if (latest[key] !== undefined) {
+          filled[key] = latest[key];
+        }
+      }
+      return filled;
+    });
   }, [trends]);
 
   const tabs = {
@@ -515,7 +527,7 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
   return (
     <div className="drive-trend-card">
       <div className="drive-detail-heading">
-        <div><p className="eyebrow">行程详情</p><h3>参数变化趋势</h3></div>
+        <h3>行程参数曲线</h3>
         <div className="drive-trend-tabs" role="tablist" aria-label="行程趋势类型">
           {(["speed", "battery", "energy"] as const).map((key) => (
             <button key={key} type="button" className={metric === key ? "active" : ""}
@@ -552,7 +564,7 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
               />
               {current.keys.filter((key) => !hiddenSeries.includes(key)).map((key) => (
                 <Line key={key} yAxisId={rightAxisKeys.includes(key) ? "right" : "left"}
-                  type="monotone" dataKey={key} name={key}
+                  type={["battery", "soc", "energy", "odometer"].includes(key) ? "stepAfter" : "monotone"} dataKey={key} name={key}
                   stroke={key === "soc" || key === "odometer" ? "#3186c8" : "#e82127"}
                   strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
               ))}
@@ -577,6 +589,7 @@ type DailySummaryPoint = {
   distanceKm: number;
   durationMinutes: number;
   energyKwh: number;
+  batteryConsumptionPct: number | null;
   driveCount: number;
 };
 
@@ -591,92 +604,133 @@ function DriveDailyTrendChart({
   const toggleSeries = (key: string) => setHiddenSeries((current) =>
     current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
   );
-  const distanceDomain = adjustedChartDomain(data.map((item) => item.distanceKm));
-  const durationDomain = adjustedChartDomain(data.map((item) => item.durationMinutes));
-  const energyDomain = adjustedChartDomain(data.map((item) => item.energyKwh));
   const labels: Record<string, string> = {
-    distanceKm: "行驶里程 · km",
-    durationMinutes: "驾驶时长 · 分钟",
-    energyKwh: "行程耗电 · kWh",
+    distanceKm: "每日里程 · km",
+    durationMinutes: "每日驾驶时长 · 分钟",
+    energyKwh: "每日耗电量 · kWh",
+    batteryConsumptionPct: "每日耗电比例 · %",
   };
+  const distanceDomain = adjustedChartDomain(
+    hiddenSeries.includes("distanceKm") ? [] : data.map((item) => item.distanceKm)
+  );
+  const durationDomain = adjustedChartDomain(
+    hiddenSeries.includes("durationMinutes") ? [] : data.map((item) => item.durationMinutes)
+  );
+  const energyDomain = adjustedChartDomain(
+    hiddenSeries.includes("energyKwh") ? [] : data.map((item) => item.energyKwh)
+  );
+  const batteryPctValues = data
+    .map((item) => item.batteryConsumptionPct)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const batteryPctDomain = adjustedChartDomain(
+    hiddenSeries.includes("batteryConsumptionPct") ? [] : batteryPctValues,
+    batteryPctValues.some((value) => value < 0) ? Number.NEGATIVE_INFINITY : 0
+  );
 
   return (
     <div className="drive-daily-chart-inner" style={{ width }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={data} margin={{ top: 12, right: 8, left: -16, bottom: 0 }}>
-          <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" vertical={false} />
-          <XAxis
-            dataKey="day"
-            tickFormatter={(value) => dayFormatter.format(new Date(`${value}T12:00:00`))}
-            minTickGap={24}
-            tick={{ fontSize: 10, fill: "#858991" }}
+      <div className="drive-daily-chart-stack">
+        <section className="drive-daily-chart-panel" aria-label="每日里程和驾驶时长">
+          <h4>每日里程与驾驶时长</h4>
+          <div className="drive-daily-chart-canvas">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart syncId="daily-drive-metrics" data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="day" hide />
+                {!hiddenSeries.includes("distanceKm") && (
+                  <YAxis yAxisId="distance" width={58} domain={distanceDomain} allowDataOverflow
+                    tickFormatter={(value) => formatAxisTick(Number(value), "km")}
+                    tick={{ fontSize: 10, fill: "#e82127" }} />
+                )}
+                {!hiddenSeries.includes("durationMinutes") && (
+                  <YAxis yAxisId="duration" orientation="right" width={66} domain={durationDomain} allowDataOverflow
+                    tickFormatter={(value) => formatAxisTick(Number(value), "分钟")}
+                    tick={{ fontSize: 10, fill: "#3186c8" }} />
+                )}
+                <Tooltip
+                  labelFormatter={(value) => `日期：${dayFormatter.format(new Date(`${value}T12:00:00`))}`}
+                  formatter={(value, name) => {
+                    const key = String(name);
+                    const unit = key === "distanceKm" ? "km" : "分钟";
+                    const digits = key === "distanceKm" ? 1 : 0;
+                    return [formatAxisTick(Number(value), unit), labels[key] ?? key];
+                  }}
+                  contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
+                />
+                {!hiddenSeries.includes("distanceKm") && (
+                  <Line yAxisId="distance" type="monotone" dataKey="distanceKm" name="distanceKm"
+                    stroke="#e82127" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                )}
+                {!hiddenSeries.includes("durationMinutes") && (
+                  <Line yAxisId="duration" type="monotone" dataKey="durationMinutes" name="durationMinutes"
+                    stroke="#3186c8" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <ClickableChartLegend
+            items={[
+              { key: "distanceKm", label: labels.distanceKm, color: "#e82127" },
+              { key: "durationMinutes", label: labels.durationMinutes, color: "#3186c8" },
+            ]}
+            hidden={hiddenSeries}
+            onToggle={toggleSeries}
           />
-          {!hiddenSeries.includes("distanceKm") && <YAxis
-            yAxisId="distance"
-            width={54}
-            domain={distanceDomain}
-            allowDataOverflow
-            tickFormatter={(value) => formatAxisTick(Number(value), "km")}
-            tick={{ fontSize: 10, fill: "#e82127" }}
-          />}
-          {!hiddenSeries.includes("durationMinutes") && <YAxis
-            yAxisId="duration"
-            orientation="right"
-            width={54}
-            domain={durationDomain}
-            allowDataOverflow
-            tickFormatter={(value) => formatAxisTick(Number(value), "分钟")}
-            tick={{ fontSize: 10, fill: "#3186c8" }}
-          />}
-          {!hiddenSeries.includes("energyKwh") && <YAxis
-            yAxisId="energy"
-            orientation="right"
-            mirror
-            width={54}
-            domain={energyDomain}
-            allowDataOverflow
-            tickFormatter={(value) => formatAxisTick(Number(value), "kWh")}
-            tick={{ fontSize: 10, fill: "#d99019" }}
-          />}
-          <Tooltip
-            labelFormatter={(value) => `日期：${dayFormatter.format(new Date(`${value}T12:00:00`))}`}
-            formatter={(value, name) => {
-              const key = String(name);
-              const unit = key === "distanceKm" ? "km" : key === "durationMinutes" ? "分钟" : "kWh";
-              const digits = key === "energyKwh" ? 2 : key === "distanceKm" ? 1 : 0;
-              return [`${Number(value).toFixed(digits)} ${unit}`, labels[key] ?? key];
-            }}
-            contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
+        </section>
+
+        <section className="drive-daily-chart-panel" aria-label="每日耗电量和电量消耗比例">
+          <h4>每日耗电量与电量消耗比例</h4>
+          <div className="drive-daily-chart-canvas">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart syncId="daily-drive-metrics" data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="day"
+                  tickFormatter={(value) => dayFormatter.format(new Date(`${value}T12:00:00`))}
+                  minTickGap={24}
+                  tick={{ fontSize: 10, fill: "#858991" }}
+                />
+                {!hiddenSeries.includes("energyKwh") && (
+                  <YAxis yAxisId="energy" width={58} domain={energyDomain} allowDataOverflow
+                    tickFormatter={(value) => formatAxisTick(Number(value), "kWh")}
+                    tick={{ fontSize: 10, fill: "#d99019" }} />
+                )}
+                {!hiddenSeries.includes("batteryConsumptionPct") && (
+                  <YAxis yAxisId="batteryPct" orientation="right" width={60} domain={batteryPctDomain} allowDataOverflow
+                    tickFormatter={(value) => formatAxisTick(Number(value), "%")}
+                    tick={{ fontSize: 10, fill: "#8056b3" }} />
+                )}
+                <Tooltip
+                  labelFormatter={(value) => `日期：${dayFormatter.format(new Date(`${value}T12:00:00`))}`}
+                  formatter={(value, name) => {
+                    const key = String(name);
+                    const unit = key === "energyKwh" ? "kWh" : "%";
+                    const digits = key === "energyKwh" ? 2 : 1;
+                    return [formatAxisTick(Number(value), unit), labels[key] ?? key];
+                  }}
+                  contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
+                />
+                {!hiddenSeries.includes("energyKwh") && (
+                  <Line yAxisId="energy" type="monotone" dataKey="energyKwh" name="energyKwh"
+                    stroke="#d99019" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+                )}
+                {!hiddenSeries.includes("batteryConsumptionPct") && (
+                  <Line yAxisId="batteryPct" type="monotone" dataKey="batteryConsumptionPct" name="batteryConsumptionPct"
+                    stroke="#8056b3" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} connectNulls />
+                )}
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+          <ClickableChartLegend
+            items={[
+              { key: "energyKwh", label: labels.energyKwh, color: "#d99019" },
+              { key: "batteryConsumptionPct", label: labels.batteryConsumptionPct, color: "#8056b3" },
+            ]}
+            hidden={hiddenSeries}
+            onToggle={toggleSeries}
           />
-          {[
-            ["distanceKm", "#e82127"],
-            ["durationMinutes", "#3186c8"],
-            ["energyKwh", "#d99019"],
-          ].filter(([key]) => !hiddenSeries.includes(String(key))).map(([key, color]) => (
-            <Line
-              key={key}
-              yAxisId={String(key) === "distanceKm" ? "distance" : String(key) === "durationMinutes" ? "duration" : "energy"}
-              type="monotone"
-              dataKey={key}
-              name={key}
-              stroke={color}
-              strokeWidth={2.5}
-              dot={{ r: 2.5 }}
-              activeDot={{ r: 5 }}
-              isAnimationActive={false}
-            />
-          ))}
-        </ComposedChart>
-      </ResponsiveContainer>
-      <ClickableChartLegend
-        items={[
-          { key: "distanceKm", label: labels.distanceKm, color: "#e82127" },
-          { key: "durationMinutes", label: labels.durationMinutes, color: "#3186c8" },
-          { key: "energyKwh", label: labels.energyKwh, color: "#d99019" },
-        ]}
-        hidden={hiddenSeries}
-        onToggle={toggleSeries}
-      />
+        </section>
+      </div>
     </div>
   );
 }
@@ -814,6 +868,8 @@ export default function DriveHistory() {
       distanceKm: number;
       durationMinutes: number;
       energyKwh: number;
+      batteryConsumptionPct: number;
+      batterySampleCount: number;
       driveCount: number;
     }>();
 
@@ -823,6 +879,8 @@ export default function DriveHistory() {
         distanceKm: 0,
         durationMinutes: 0,
         energyKwh: 0,
+        batteryConsumptionPct: 0,
+        batterySampleCount: 0,
         driveCount: 0,
       };
       const start = new Date(drive.started_at).getTime();
@@ -831,12 +889,23 @@ export default function DriveHistory() {
       summary.distanceKm += drive.distance_km ?? 0;
       summary.durationMinutes += Number.isFinite(end - start) ? Math.max(0, (end - start) / 60000) : 0;
       summary.energyKwh += drive.energy_used_kwh ?? 0;
+      if (drive.start_battery_level != null && drive.end_battery_level != null) {
+        summary.batteryConsumptionPct += drive.start_battery_level - drive.end_battery_level;
+        summary.batterySampleCount += 1;
+      }
       summary.driveCount += 1;
       groups.set(key, summary);
     }
 
     return [...groups.entries()]
-      .map(([day, summary]) => ({ day, ...summary }))
+      .map(([day, summary]) => ({
+        day,
+        distanceKm: summary.distanceKm,
+        durationMinutes: summary.durationMinutes,
+        energyKwh: summary.energyKwh,
+        batteryConsumptionPct: summary.batterySampleCount > 0 ? summary.batteryConsumptionPct : null,
+        driveCount: summary.driveCount,
+      }))
       .sort((a, b) => a.day.localeCompare(b.day));
   }, [drives]);
 
