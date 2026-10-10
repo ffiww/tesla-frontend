@@ -128,6 +128,41 @@ export default function EnergyHistory() {
     [history]
   );
 
+  const chargeDailyData = useMemo(() => {
+    const groups = new Map<string, {
+      label: string;
+      daily_energy_kwh: number;
+      max_power_kw: number | null;
+      session_count: number;
+    }>();
+
+    for (const session of history?.charging_sessions ?? []) {
+      const date = new Date(session.started_at);
+      if (!Number.isFinite(date.getTime())) continue;
+      const key = [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0"),
+      ].join("-");
+      const item = groups.get(key) ?? {
+        label: dateOnly.format(date),
+        daily_energy_kwh: 0,
+        max_power_kw: null,
+        session_count: 0,
+      };
+      item.daily_energy_kwh += session.energy_added_kwh ?? 0;
+      item.max_power_kw = session.max_power_kw == null
+        ? item.max_power_kw
+        : Math.max(item.max_power_kw ?? 0, session.max_power_kw);
+      item.session_count += 1;
+      groups.set(key, item);
+    }
+
+    return [...groups.entries()]
+      .sort(([dayA], [dayB]) => dayA.localeCompare(dayB))
+      .map(([, item]) => item);
+  }, [history]);
+
   const chargePoints = useMemo(
     () =>
       (history?.charge_points ?? [])
@@ -255,7 +290,7 @@ export default function EnergyHistory() {
       ) : (
         <div className="energy-history-chart">
           <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={chargeData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
+            <ComposedChart data={chargeDailyData} margin={{ top: 8, right: 12, left: -18, bottom: 0 }}>
               <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
               <XAxis dataKey="label" minTickGap={24} tick={{ fontSize: 10, fill: "#858991" }} />
               <YAxis yAxisId="energy" unit=" kWh" tick={{ fontSize: 10, fill: "#858991" }} />
@@ -264,14 +299,15 @@ export default function EnergyHistory() {
                 labelFormatter={(value) => `充电日期：${value}`}
                 formatter={(value, name) => [
                   value == null ? "—" : Number(value).toFixed(1),
-                  name === "energy_added_kwh" ? "充入电量 (kWh)" : "峰值功率 (kW)",
+                  name === "daily_energy_kwh" ? "当日充入电量 (kWh)" : "当日最高功率 (kW)",
                 ]}
               />
-              <Bar yAxisId="energy" dataKey="energy_added_kwh" name="energy_added_kwh" fill="#e82127" radius={[4, 4, 0, 0]} />
+              <Bar yAxisId="energy" dataKey="daily_energy_kwh" name="daily_energy_kwh" fill="#e82127" radius={[4, 4, 0, 0]} />
               <Line yAxisId="power" dataKey="max_power_kw" name="max_power_kw" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+              <Legend formatter={(value) => value === "daily_energy_kwh" ? "当日充入电量" : "当日最高功率"} />
             </ComposedChart>
           </ResponsiveContainer>
-          <p className="energy-history-note">按充电开始时间排列；显示每次充入电量和峰值功率。</p>
+          <p className="energy-history-note">按自然日汇总；柱形为当日充入电量，曲线为当日最高充电功率。下方可选择单次充电查看电量与功率变化。</p>
           <div className="charge-session-detail">
             <div className="charge-session-detail-heading">
               <div>
