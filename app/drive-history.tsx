@@ -608,7 +608,7 @@ function DriveDailyTrendChart({
     distanceKm: "每日里程 · km",
     durationMinutes: "每日驾驶时长 · 分钟",
     energyKwh: "每日耗电量 · kWh",
-    batteryConsumptionPct: "每日耗电比例 · %",
+    batteryConsumptionPct: "每日耗电百分比合计 · %",
   };
   const distanceDomain = adjustedChartDomain(
     hiddenSeries.includes("distanceKm") ? [] : data.map((item) => item.distanceKm)
