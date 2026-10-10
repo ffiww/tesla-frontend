@@ -146,7 +146,12 @@
 .vehicle-info-row .metric{min-width:0;min-height:178px;padding:17px;justify-content:space-between;border-radius:18px}
 .vehicle-info-row .metric strong{font-size:.96rem;overflow-wrap:anywhere}
 .drive-daily-scroll{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin}
-.drive-daily-chart-inner{height:205px;min-width:100%}
+.drive-daily-chart-inner{height:auto;min-width:100%}
+.drive-daily-chart-stack{display:flex;flex-direction:column;gap:12px}
+.drive-daily-chart-panel{min-width:0}
+.drive-daily-chart-panel h4{margin:0 0 4px;color:#565b63;font-size:.76rem;font-weight:650}
+.drive-daily-chart-canvas{height:185px}
+.drive-daily-chart-panel .chart-legend{margin:0 0 2px 54px}
 .drive-history-load-more{display:block;margin:10px auto 0;padding:8px 13px;border:1px solid #e6e8eb;border-radius:999px;background:#fff;color:#666b72;font:inherit;font-size:.75rem;cursor:pointer}
 .drive-history-load-more:disabled{opacity:.55;cursor:wait}
 .energy-module{margin-top:22px;padding-top:20px;border-top:1px solid #eceef1}
@@ -206,7 +211,8 @@
   .vehicle-location-slot{grid-column:1/-1}
   .vehicle-info-row .metric{min-height:128px;padding:13px}
   .vehicle-info-row .metric strong{font-size:.9rem}
-  .drive-daily-chart-inner{height:280px}
+  .drive-daily-chart-inner{height:auto}
+  .drive-daily-chart-canvas{height:215px}
   .energy-panel{padding:11px}
   .energy-panel .energy-history-chart{height:190px}
   .charge-daily-chart{height:220px}
