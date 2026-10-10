@@ -23,6 +23,8 @@ type Drive = {
   efficiency_wh_km: number | null;
   average_speed_kmh: number | null;
   max_speed_kmh: number | null;
+  start_battery_level: number | null;
+  end_battery_level: number | null;
 };
 
 type Position = {
@@ -907,6 +909,11 @@ export default function DriveHistory() {
                     <i>·</i>
                     {durationLabel(drive.started_at, drive.ended_at)}
                   </span>
+                  <span className="drive-list-battery">
+                    起始电量 {numberLabel(drive.start_battery_level, 1)}%
+                    <i>·</i>
+                    结束电量 {numberLabel(drive.end_battery_level, 1)}%
+                  </span>
                 </button>
               );
             })}
@@ -950,6 +957,14 @@ export default function DriveHistory() {
                 </div>
 
                 <div className="drive-extra-metrics">
+                  <span>
+                    起始电量{" "}
+                    <strong>{numberLabel(selectedDrive.start_battery_level, 1)}%</strong>
+                  </span>
+                  <span>
+                    结束电量{" "}
+                    <strong>{numberLabel(selectedDrive.end_battery_level, 1)}%</strong>
+                  </span>
                   <span>
                     耗电{" "}
                     <strong>
