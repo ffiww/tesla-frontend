@@ -82,6 +82,97 @@ function numberLabel(value: number | null | undefined, digits = 1) {
   return value == null ? "—" : value.toFixed(digits);
 }
 
+function adjustedChartDomain(
+  values: number[],
+  minimum = 0,
+  maximum = Number.POSITIVE_INFINITY
+): [number, number] {
+  if (values.length === 0) return [minimum, Math.min(maximum, minimum + 1)];
+
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  const span = high - low;
+  const padding = Math.max(span * 0.12, Math.abs(low) * 0.005, 0.5);
+  const domainLow = Math.max(minimum, low - padding);
+  const domainHigh = Math.min(maximum, high + padding);
+
+  return domainHigh > domainLow
+    ? [domainLow, domainHigh]
+    : [domainLow, Math.min(maximum, domainLow + 1)];
+}
+
+type DailySummaryPoint = {
+  day: string;
+  distanceKm: number;
+  durationMinutes: number;
+  energyKwh: number;
+  driveCount: number;
+};
+
+function DailyMetricChart({
+  data,
+  dataKey,
+  title,
+  unit,
+  color,
+  precision = 1,
+}: {
+  data: DailySummaryPoint[];
+  dataKey: "distanceKm" | "durationMinutes" | "energyKwh";
+  title: string;
+  unit: string;
+  color: string;
+  precision?: number;
+}) {
+  const values = data.map((item) => item[dataKey]).filter(Number.isFinite);
+  const domain = adjustedChartDomain(values);
+  const formatValue = (value: number) => `${value.toFixed(precision)} ${unit}`;
+
+  return (
+    <div className="drive-daily-metric">
+      <div className="drive-daily-metric-heading">
+        <strong>{title}</strong>
+        <span>{unit}</span>
+      </div>
+      <div className="drive-daily-chart">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 7, right: 10, left: -12, bottom: 0 }}>
+            <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" vertical={false} />
+            <XAxis
+              dataKey="day"
+              tickFormatter={(value) => dayFormatter.format(new Date(`${value}T12:00:00`))}
+              minTickGap={28}
+              tick={{ fontSize: 10, fill: "#858991" }}
+            />
+            <YAxis
+              width={64}
+              domain={domain}
+              allowDataOverflow
+              tickFormatter={(value) => Number(value).toFixed(precision)}
+              tick={{ fontSize: 10, fill: "#858991" }}
+            />
+            <Tooltip
+              labelFormatter={(value) => `日期：${dayFormatter.format(new Date(`${value}T12:00:00`))}`}
+              formatter={(value) => [formatValue(Number(value)), title]}
+              contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
+            />
+            <Line
+              type="monotone"
+              dataKey={dataKey}
+              name={title}
+              stroke={color}
+              strokeWidth={2.5}
+              dot={{ r: 2.5, fill: color, strokeWidth: 0 }}
+              activeDot={{ r: 5 }}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
 function durationLabel(start: string, end: string | null) {
   if (!end) return "进行中";
 
@@ -344,22 +435,22 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
   const rightAxisKeys = metric === "energy" ? ["odometer"] : [];
   const leftDomain = useMemo(() => {
     const values = chartData.flatMap((point) =>
-      current.keys.filter((key) => !rightAxisKeys.includes(key))
-        .map((key) => point[key]).filter((value) => typeof value === "number")
+      current.keys
+        .filter((key) => !rightAxisKeys.includes(key))
+        .map((key) => point[key])
+        .filter((value): value is number => typeof value === "number")
     );
-    if (!values.length) return [0, 1] as [number, number];
-    const low = Math.min(...values);
-    const high = Math.max(...values);
-    const pad = Math.max((high - low) * 0.1, Math.abs(high || low || 1) * 0.015);
-    return [low - pad, high + pad] as [number, number];
-  }, [chartData, current.keys, rightAxisKeys]);
+    return adjustedChartDomain(
+      values,
+      0,
+      metric === "battery" ? 100 : Number.POSITIVE_INFINITY
+    );
+  }, [chartData, current.keys, metric, rightAxisKeys]);
   const rightDomain = useMemo(() => {
-    const values = chartData.map((point) => point.odometer).filter((value) => typeof value === "number");
-    if (!values.length) return ["auto", "auto"] as [string, string];
-    const low = Math.min(...values);
-    const high = Math.max(...values);
-    const pad = Math.max((high - low) * 0.1, Math.abs(high || low || 1) * 0.015);
-    return [low - pad, high + pad] as [number, number];
+    const values = chartData
+      .map((point) => point.odometer)
+      .filter((value): value is number => typeof value === "number");
+    return adjustedChartDomain(values);
   }, [chartData]);
   const hasData = chartData.some((point) => current.keys.some((key) => point[key] != null));
 
@@ -538,44 +629,41 @@ export default function DriveHistory() {
 
     return [...groups.entries()]
       .map(([day, summary]) => ({ day, ...summary }))
-      .sort((a, b) => b.day.localeCompare(a.day));
+      .sort((a, b) => a.day.localeCompare(b.day));
   }, [drives]);
 
   return (
     <section className="drive-history-card" aria-label="行程轨迹">
       <div className="drive-history-heading">
-        <div>
-          <p className="eyebrow">历史记录</p>
-          <h2>行程轨迹</h2>
-          <p>查看最近完成的行程、地图轨迹和行程参数变化。</p>
-        </div>
+        <h2>历史行程</h2>
         <Clock3 size={20} />
       </div>
 
       {!loadingList && dailySummaries.length > 0 && (
-        <section className="drive-daily-summary" aria-label="按日期行程汇总">
-          <div className="drive-daily-heading">
-            <div>
-              <p className="eyebrow">近期统计</p>
-              <h3>按日期行程</h3>
-            </div>
-            <small>最近完成的行程</small>
-          </div>
-          <div className="drive-day-list">
-            {dailySummaries.map((item) => (
-              <article className="drive-day-card" key={item.day}>
-                <div className="drive-day-title">
-                  <strong>{dayFormatter.format(new Date(`${item.day}T12:00:00`))}</strong>
-                  <span>{item.driveCount} 段行程</span>
-                </div>
-                <div className="drive-day-metrics">
-                  <span><small>里程</small><strong>{numberLabel(item.distanceKm)} km</strong></span>
-                  <span><small>驾驶时长</small><strong>{totalDurationLabel(item.durationMinutes)}</strong></span>
-                  <span><small>耗电</small><strong>{numberLabel(item.energyKwh, 2)} kWh</strong></span>
-                </div>
-              </article>
-            ))}
-          </div>
+        <section className="drive-daily-summary" aria-label="按日期行程趋势">
+          <DailyMetricChart
+            data={dailySummaries}
+            dataKey="distanceKm"
+            title="行驶里程"
+            unit="km"
+            color="#e82127"
+          />
+          <DailyMetricChart
+            data={dailySummaries}
+            dataKey="durationMinutes"
+            title="驾驶时长"
+            unit="分钟"
+            color="#3186c8"
+            precision={0}
+          />
+          <DailyMetricChart
+            data={dailySummaries}
+            dataKey="energyKwh"
+            title="行程耗电"
+            unit="kWh"
+            color="#d99019"
+            precision={2}
+          />
         </section>
       )}
 
