@@ -190,10 +190,23 @@ export default function EnergyHistory() {
         const timestamp = new Date(item.recorded_at).getTime();
         if (!Number.isFinite(timestamp)) continue;
         if (!points.has(timestamp)) points.set(timestamp, { timestamp });
-        (points.get(timestamp) as { timestamp: number; battery?: number; soc?: number })[key] = item.value;
+        if (typeof item.value === "number" && Number.isFinite(item.value)) {
+          (points.get(timestamp) as { timestamp: number; battery?: number; soc?: number })[key] = item.value;
+        }
       }
     }
-    return [...points.values()].sort((a, b) => a.timestamp - b.timestamp);
+    const ordered = [...points.values()].sort((a, b) => a.timestamp - b.timestamp);
+    let latestBattery: number | undefined;
+    let latestSoc: number | undefined;
+    return ordered.map((point) => {
+      if (point.battery !== undefined) latestBattery = point.battery;
+      if (point.soc !== undefined) latestSoc = point.soc;
+      return {
+        ...point,
+        battery: point.battery ?? latestBattery,
+        soc: point.soc ?? latestSoc,
+      };
+    });
   }, [history]);
 
   const driveDailyData = useMemo(() => {
@@ -335,8 +348,8 @@ export default function EnergyHistory() {
                             name === "battery" ? "电池电量" : "SOC",
                           ]}
                         />
-                        {!hiddenBatterySeries.includes("battery") && <Line type="monotone" dataKey="battery" name="battery" stroke="#e82127" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
-                        {!hiddenBatterySeries.includes("soc") && <Line type="monotone" dataKey="soc" name="soc" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
+                        {!hiddenBatterySeries.includes("battery") && <Line type="stepAfter" dataKey="battery" name="battery" stroke="#e82127" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
+                        {!hiddenBatterySeries.includes("soc") && <Line type="stepAfter" dataKey="soc" name="soc" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
                       </LineChart>
                     </ResponsiveContainer>
                     <ClickableChartLegend
