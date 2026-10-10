@@ -164,6 +164,20 @@ export default function EnergyHistory() {
       .map(([, item]) => item);
   }, [history]);
 
+  const batteryDomain = useMemo(() => {
+    const values = batteryData.flatMap((point) =>
+      [point.battery, point.soc].filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+    );
+    if (values.length === 0) return [0, 1] as [number, number];
+    const low = Math.min(...values);
+    const high = Math.max(...values);
+    const padding = Math.max((high - low) * 0.12, 0.5);
+    return [
+      Math.max(0, low - padding),
+      Math.min(100, Math.max(high + padding, low + 1)),
+    ] as [number, number];
+  }, [batteryData]);
+
   const chargePoints = useMemo(
     () =>
       (history?.charge_points ?? [])
@@ -193,12 +207,9 @@ export default function EnergyHistory() {
   } as const;
 
   return (
-    <article className="trend-card energy-history-card">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">历史趋势 · 近 30–90 天</p>
-          <h2>电量与能耗</h2>
-        </div>
+    <article className="drive-history-card energy-history-card">
+      <div className="drive-history-heading">
+        <h2>电量与能耗</h2>
         <BatteryCharging size={20} />
       </div>
 
@@ -241,7 +252,7 @@ export default function EnergyHistory() {
                   minTickGap={28}
                   tick={{ fontSize: 10, fill: "#858991" }}
                 />
-                <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 10, fill: "#858991" }} />
+                <YAxis domain={batteryDomain} allowDataOverflow unit="%" tick={{ fontSize: 10, fill: "#858991" }} />
                 <Tooltip
                   labelFormatter={(value) => dateTime.format(new Date(value))}
                   formatter={(value, name) => [
