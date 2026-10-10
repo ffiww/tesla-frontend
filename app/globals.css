@@ -42,9 +42,13 @@
 .drive-extra-metrics strong{color:#25282d;font-size:.8rem}
 
 .energy-history-card{min-width:0}
-.energy-history-tabs,.drive-trend-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:16px 0 5px}
-.energy-history-tabs button,.drive-trend-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid #e5e7ea;border-radius:999px;background:#fff;color:#6f737a;font:inherit;font-size:.78rem;cursor:pointer}
-.energy-history-tabs button.active,.drive-trend-tabs button.active{border-color:#e82127;background:#fff4f4;color:#c91d24}
+.energy-history-tabs,.drive-trend-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:16px 0 10px}
+.energy-history-tabs{width:max-content;max-width:100%;padding:4px;border-radius:999px;background:#f3f4f6}
+.energy-history-tabs button,.drive-trend-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid #e5e7ea;border-radius:999px;background:#fff;color:#6f737a;font:inherit;font-size:.78rem;cursor:pointer;transition:background .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease}
+.energy-history-tabs button{border-color:transparent;background:transparent;padding:8px 14px}
+.energy-history-tabs button:hover{color:#25282d}
+.energy-history-tabs button.active{border-color:#fff;background:#fff;color:#c91d24;box-shadow:0 2px 8px rgba(24,28,34,.09)}
+.drive-trend-tabs button.active{border-color:#e82127;background:#fff4f4;color:#c91d24}
 .energy-history-chart{height:190px;position:relative;margin-top:8px}
 .energy-chart-legend{display:flex;gap:16px;align-items:center;color:#777b82;font-size:.74rem;margin:2px 0 0 38px}
 .energy-chart-legend span{display:inline-flex;align-items:center;gap:6px}
@@ -145,20 +149,11 @@
 .vehicle-info-row .metric-grid{display:contents}
 .vehicle-info-row .metric{min-width:0;min-height:178px;padding:17px;justify-content:space-between;border-radius:18px}
 .vehicle-info-row .metric strong{font-size:.96rem;overflow-wrap:anywhere}
-.drive-daily-summary{margin:4px 0 20px;padding:16px 17px;border:1px solid #e7e9ec;border-radius:16px;background:#fafbfc}
-.drive-daily-heading{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:12px}
-.drive-daily-heading .eyebrow{margin-bottom:4px}
-.drive-daily-heading h3{margin:0;font-size:1rem}
-.drive-daily-heading small{color:#8a8e95;font-size:.72rem}
-.drive-day-list{display:grid;grid-auto-columns:minmax(220px,1fr);grid-auto-flow:column;gap:10px;overflow-x:auto;padding-bottom:3px}
-.drive-day-card{min-width:0;padding:12px 13px;border:1px solid #e8eaed;border-radius:13px;background:#fff}
-.drive-day-title{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
-.drive-day-title strong{font-size:.86rem}
-.drive-day-title span{color:#888c93;font-size:.7rem;white-space:nowrap}
-.drive-day-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
-.drive-day-metrics span{display:flex;flex-direction:column;gap:4px;min-width:0}
-.drive-day-metrics small{color:#888c93;font-size:.66rem}
-.drive-day-metrics strong{font-size:.75rem;white-space:nowrap}
+.drive-daily-summary{display:grid;gap:10px;margin:0 0 20px}
+.drive-daily-metric{min-width:0;padding:11px 14px 8px;border:1px solid #e8eaed;border-radius:14px;background:#fff}
+.drive-daily-metric-heading{display:flex;align-items:center;gap:8px;color:#34373c;font-size:.82rem}
+.drive-daily-metric-heading span{padding:3px 8px;border-radius:999px;background:#f4f5f6;color:#858991;font-size:.68rem}
+.drive-daily-chart{height:126px;margin-top:2px}
 .charge-session-detail{margin-top:18px;padding:15px;border:1px solid #e7e9ec;border-radius:16px;background:#fbfbfc}
 .charge-session-detail-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
 .charge-session-detail-heading>div{display:flex;flex-direction:column;gap:4px}
@@ -186,8 +181,10 @@
   .vehicle-location-slot{grid-column:1/-1}
   .vehicle-info-row .metric{min-height:128px;padding:13px}
   .vehicle-info-row .metric strong{font-size:.9rem}
-  .drive-daily-summary{padding:13px}
-  .drive-day-list{grid-auto-columns:minmax(220px,82%)}
+  .drive-daily-metric{padding:9px 10px 6px}
+  .drive-daily-chart{height:118px}
+  .energy-history-tabs{width:100%;justify-content:space-between}
+  .energy-history-tabs button{flex:1;padding:8px 9px}
   .charge-session-detail{padding:11px}
   .charge-session-detail-heading{align-items:flex-start;flex-direction:column}
   .charge-session-detail-heading select{max-width:100%;width:100%}
