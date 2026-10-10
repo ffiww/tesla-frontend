@@ -497,129 +497,45 @@ export default function Dashboard({
       >
         <div className="vehicle-heading">
           <div>
-            <p className="eyebrow">
-              个人车辆
-            </p>
-
-            <h1>
-              {data?.vehicle
-                ?.name ??
-                "我的 Tesla"}
-            </h1>
-
+            <p className="eyebrow">个人车辆</p>
+            <h1>{data?.vehicle?.name ?? "我的 Tesla"}</h1>
             <p className="vehicle-meta">
-              <span>
-                {vehicleOnline
-                  ? "在线"
-                  : hasVehicle
-                    ? "offline"
-                    : "尚未授权"}
-              </span>
-
+              <span>{vehicleOnline ? "在线" : hasVehicle ? "offline" : "尚未授权"}</span>
               <span>·</span>
-
               <span>
                 {snapshot?.capturedAt
-                  ? `更新于 ${formatter.format(
-                      new Date(
-                        snapshot.capturedAt
-                      )
-                    )}`
+                  ? `更新于 ${formatter.format(new Date(snapshot.capturedAt))}`
                   : "暂无同步数据"}
               </span>
             </p>
           </div>
-
-          <button
-            className="refresh-button"
-            onClick={() =>
-              void load()
-            }
-            disabled={loading}
-          >
-            {loading ? (
-              <LoaderCircle
-                className="spin"
-                size={18}
-              />
-            ) : (
-              <RefreshCw
-                size={18}
-              />
+          <div className="vehicle-actions">
+            {connected && data?.sleeping && (
+              <button
+                className="wake-button"
+                type="button"
+                onClick={() => void wakeUp()}
+                disabled={waking}
+                title={wakeError ?? "手动唤醒车辆"}
+              >
+                {waking ? <LoaderCircle className="spin" size={16} /> : <Zap size={16} />}
+                {waking ? "唤醒中" : "唤醒车辆"}
+              </button>
             )}
-
-            {loading
-              ? "正在读取"
-              : "刷新车况"}
-          </button>
-        </div>
-
-        {/*
-          车辆已经绑定到 Dashboard，
-          但是当前处于 offline / asleep 时，
-          显示手动唤醒按钮。
-        */}
-        {!loading &&
-          connected &&
-          data?.sleeping && (
-            <section
-              className="setup-panel"
-              aria-live="polite"
+            <button
+              className="refresh-button"
+              type="button"
+              onClick={() => void load()}
+              disabled={loading}
             >
-              <div className="setup-icon">
-                <CarFront
-                  size={28}
-                />
-              </div>
-
-              <div className="setup-copy">
-                <p className="eyebrow">
-                  offline
-                </p>
-
-                <h2>
-                  车辆当前未唤醒
-                </h2>
-
-                <p>
-                  {waking
-                    ? "正在唤醒车辆…"
-                    : wakeError ??
-                      "手动唤醒后将自动等待车辆上线。"}
-                </p>
-
-                <button
-                  className="connect-button"
-                  onClick={() =>
-                    void wakeUp()
-                  }
-                  disabled={waking}
-                >
-                  {waking ? (
-                    <LoaderCircle
-                      className="spin"
-                      size={18}
-                    />
-                  ) : (
-                    <Zap
-                      size={18}
-                    />
-                  )}
-
-                  {waking
-                    ? "正在唤醒车辆…"
-                    : "唤醒车辆"}
-                </button>
-              </div>
-
-              <div className="privacy-note">
-                <LockKeyhole
-                  size={16}
-                />
-                仅在你点击后发送唤醒请求
-              </div>
-            </section>
-          )}
+              {loading ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
+              {loading ? "读取中" : "刷新车况"}
+            </button>
+          </div>
+        </div>
+        {wakeError && connected && data?.sleeping && (
+          <p className="wake-error" role="status">{wakeError}</p>
+        )}
 
         {/*
           只有真正未连接 / 未登录时，
@@ -740,65 +656,44 @@ export default function Dashboard({
           <article className="facts-card quick-check-card">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">当前状态</p>
-                <h2>快速检查</h2>
+                <p className="eyebrow">车辆与充电</p>
+                <h2>当前状态</h2>
               </div>
               <Unplug size={20} />
             </div>
-            <ul>
+            <div className="current-charge-banner">
+              <div className="current-charge-icon"><Zap size={19} /></div>
+              <div className="current-charge-main">
+                <span>充电状态</span>
+                <strong>{connected ? chargeLabel : "—"}</strong>
+              </div>
+              <div className="current-charge-meta">
+                <span>充电速度</span>
+                <strong>{display(snapshot?.chargeRateKmH, " km/h")}</strong>
+              </div>
+              <div className="current-charge-meta">
+                <span>预计充满</span>
+                <strong>{snapshot?.minutesToFullCharge ? `约 ${snapshot.minutesToFullCharge} 分钟` : "—"}</strong>
+              </div>
+            </div>
+            <ul className="quick-check-list">
               <li><span>车辆连接</span><strong>{vehicleOnline ? "在线" : hasVehicle ? "offline" : "—"}</strong></li>
-              <li><span>充电连接</span><strong>{snapshot?.chargingState === "Disconnected" ? "未连接" : chargeLabel}</strong></li>
-              <li><span>总里程</span><strong>{display(snapshot?.odometerKm, " km")}</strong></li>
-              <li><span>数据时间</span><strong>{snapshot?.capturedAt ? formatter.format(new Date(snapshot.capturedAt)) : "暂无同步数据"}</strong></li>
+              <li><span>数据更新时间</span><strong>{snapshot?.capturedAt ? formatter.format(new Date(snapshot.capturedAt)) : "暂无同步数据"}</strong></li>
             </ul>
           </article>
 
-          <article className="charge-card">
-            <div className="charge-orb">
-              <Zap size={28} />
-            </div>
 
-            <div>
-              <p className="eyebrow">
-                充电状态
-              </p>
-
-              <h2>
-                {connected
-                  ? chargeLabel
-                  : "—"}
-              </h2>
-
-              <p>
-                {snapshot?.minutesToFullCharge
-                  ? `约 ${snapshot.minutesToFullCharge} 分钟充满`
-                  : "暂无充电计划"}
-              </p>
-            </div>
-
-            <div className="charge-rate">
-              <span>
-                {display(
-                  snapshot?.chargeRateKmH,
-                  " km/h"
-                )}
-              </span>
-
-              <small>
-                充电速度
-              </small>
-            </div>
-          </article>
         </section>
 
-        <section
-          className={
-            connected
-              ? "metric-grid"
-              : "metric-grid is-muted"
-          }
-          aria-label="详细车况"
-        >
+        <section className="vehicle-info-row" aria-label="位置与车辆信息">
+          <div className="vehicle-location-slot">
+            <VehicleLocationCard
+              latitude={snapshot?.latitude ?? null}
+              longitude={snapshot?.longitude ?? null}
+              updatedAt={snapshot?.locationUpdatedAt ?? null}
+            />
+          </div>
+          <div className={connected ? "metric-grid" : "metric-grid is-muted"} aria-label="详细车况">
           <article className="metric">
             <Gauge />
             <span>
@@ -845,18 +740,11 @@ export default function Dashboard({
             </strong>
           </article>
 
+          </div>
         </section>
 
-        <section className="lower-grid">
-          <EnergyHistory />
-
-          <VehicleLocationCard
-            latitude={snapshot?.latitude ?? null}
-            longitude={snapshot?.longitude ?? null}
-            updatedAt={snapshot?.locationUpdatedAt ?? null}
-          />
-        </section>
         <DriveHistory />
+        <EnergyHistory />
 
       </section>
 
