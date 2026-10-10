@@ -57,6 +57,27 @@ const dateFormatter = new Intl.DateTimeFormat("zh-CN", {
   minute: "2-digit",
 });
 
+const dayFormatter = new Intl.DateTimeFormat("zh-CN", {
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function localDayKey(value: string) {
+  const date = new Date(value);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function totalDurationLabel(minutes: number) {
+  const rounded = Math.round(minutes);
+  const hours = Math.floor(rounded / 60);
+  const rest = rounded % 60;
+  return hours > 0 ? `${hours}小时${rest}分钟` : `${rest}分钟`;
+}
+
 function numberLabel(value: number | null | undefined, digits = 1) {
   return value == null ? "—" : value.toFixed(digits);
 }
@@ -489,6 +510,37 @@ export default function DriveHistory() {
     [drives, selectedId]
   );
 
+  const dailySummaries = useMemo(() => {
+    const groups = new Map<string, {
+      distanceKm: number;
+      durationMinutes: number;
+      energyKwh: number;
+      driveCount: number;
+    }>();
+
+    for (const drive of drives) {
+      const key = localDayKey(drive.started_at);
+      const summary = groups.get(key) ?? {
+        distanceKm: 0,
+        durationMinutes: 0,
+        energyKwh: 0,
+        driveCount: 0,
+      };
+      const start = new Date(drive.started_at).getTime();
+      const end = drive.ended_at ? new Date(drive.ended_at).getTime() : start;
+
+      summary.distanceKm += drive.distance_km ?? 0;
+      summary.durationMinutes += Number.isFinite(end - start) ? Math.max(0, (end - start) / 60000) : 0;
+      summary.energyKwh += drive.energy_used_kwh ?? 0;
+      summary.driveCount += 1;
+      groups.set(key, summary);
+    }
+
+    return [...groups.entries()]
+      .map(([day, summary]) => ({ day, ...summary }))
+      .sort((a, b) => b.day.localeCompare(a.day));
+  }, [drives]);
+
   return (
     <section className="drive-history-card" aria-label="行程轨迹">
       <div className="drive-history-heading">
@@ -499,6 +551,33 @@ export default function DriveHistory() {
         </div>
         <Clock3 size={20} />
       </div>
+
+      {!loadingList && dailySummaries.length > 0 && (
+        <section className="drive-daily-summary" aria-label="按日期行程汇总">
+          <div className="drive-daily-heading">
+            <div>
+              <p className="eyebrow">近期统计</p>
+              <h3>按日期行程</h3>
+            </div>
+            <small>最近完成的行程</small>
+          </div>
+          <div className="drive-day-list">
+            {dailySummaries.map((item) => (
+              <article className="drive-day-card" key={item.day}>
+                <div className="drive-day-title">
+                  <strong>{dayFormatter.format(new Date(`${item.day}T12:00:00`))}</strong>
+                  <span>{item.driveCount} 段行程</span>
+                </div>
+                <div className="drive-day-metrics">
+                  <span><small>里程</small><strong>{numberLabel(item.distanceKm)} km</strong></span>
+                  <span><small>驾驶时长</small><strong>{totalDurationLabel(item.durationMinutes)}</strong></span>
+                  <span><small>耗电</small><strong>{numberLabel(item.energyKwh, 2)} kWh</strong></span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {error && <p className="drive-history-error">{error}</p>}
 
