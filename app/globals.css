@@ -42,12 +42,8 @@
 .drive-extra-metrics strong{color:#25282d;font-size:.8rem}
 
 .energy-history-card{min-width:0}
-.energy-history-tabs,.drive-trend-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:16px 0 10px}
-.energy-history-tabs{width:max-content;max-width:100%;padding:4px;border-radius:999px;background:#f3f4f6}
-.energy-history-tabs button,.drive-trend-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid #e5e7ea;border-radius:999px;background:#fff;color:#6f737a;font:inherit;font-size:.78rem;cursor:pointer;transition:background .16s ease,border-color .16s ease,color .16s ease,box-shadow .16s ease}
-.energy-history-tabs button{border-color:transparent;background:transparent;padding:8px 14px}
-.energy-history-tabs button:hover{color:#25282d}
-.energy-history-tabs button.active{border-color:#fff;background:#fff;color:#c91d24;box-shadow:0 2px 8px rgba(24,28,34,.09)}
+.drive-trend-tabs{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin:16px 0 10px}
+.drive-trend-tabs button{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 12px;border:1px solid #e5e7ea;border-radius:999px;background:#fff;color:#6f737a;font:inherit;font-size:.78rem;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
 .drive-trend-tabs button.active{border-color:#e82127;background:#fff4f4;color:#c91d24}
 .energy-history-chart{height:190px;position:relative;margin-top:8px}
 .energy-chart-legend{display:flex;gap:16px;align-items:center;color:#777b82;font-size:.74rem;margin:2px 0 0 38px}
@@ -136,9 +132,9 @@
 .quick-check-list li{display:flex;justify-content:space-between;gap:8px;border-top:1px solid #eceef0;padding-top:10px;font-size:.78rem}
 .quick-check-list li span{color:#7a7e85}
 .quick-check-list li strong{font-weight:650;text-align:right}
-.current-charge-banner{display:grid;grid-template-columns:auto minmax(100px,1.2fr) repeat(2,minmax(100px,.8fr));align-items:center;gap:13px;padding:14px 16px;border:1px solid #f4d0d2;border-radius:15px;background:linear-gradient(110deg,#fff7f7,#fff)}
-.current-charge-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#fee9ea;color:#e82127}
-.current-charge-main,.current-charge-meta{display:flex;flex-direction:column;gap:4px;min-width:0}
+.current-charge-banner{display:grid;grid-template-columns:auto minmax(110px,1.2fr) repeat(2,minmax(110px,.8fr));align-items:center;gap:12px;padding:15px 16px;border:1px solid #e9eaed;border-radius:17px;background:linear-gradient(115deg,#f7f8fa 0%,#fff 72%)}
+.current-charge-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#fff0f0;color:#e82127}
+.current-charge-main,.current-charge-meta{display:flex;flex-direction:column;gap:5px;min-width:0}
 .current-charge-main span,.current-charge-meta span{font-size:.7rem;color:#80848a}
 .current-charge-main strong{font-size:.95rem;color:#272a2f}
 .current-charge-meta strong{font-size:.8rem;color:#3d4147;white-space:nowrap}
@@ -149,18 +145,43 @@
 .vehicle-info-row .metric-grid{display:contents}
 .vehicle-info-row .metric{min-width:0;min-height:178px;padding:17px;justify-content:space-between;border-radius:18px}
 .vehicle-info-row .metric strong{font-size:.96rem;overflow-wrap:anywhere}
-.drive-daily-summary{display:grid;gap:10px;margin:0 0 20px}
-.drive-daily-metric{min-width:0;padding:11px 14px 8px;border:1px solid #e8eaed;border-radius:14px;background:#fff}
-.drive-daily-metric-heading{display:flex;align-items:center;gap:8px;color:#34373c;font-size:.82rem}
-.drive-daily-metric-heading span{padding:3px 8px;border-radius:999px;background:#f4f5f6;color:#858991;font-size:.68rem}
-.drive-daily-chart{height:126px;margin-top:2px}
-.charge-session-detail{margin-top:18px;padding:15px;border:1px solid #e7e9ec;border-radius:16px;background:#fbfbfc}
-.charge-session-detail-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
-.charge-session-detail-heading>div{display:flex;flex-direction:column;gap:4px}
+.drive-daily-scroll{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;scrollbar-width:thin}
+.drive-daily-chart-inner{height:205px;min-width:100%}
+.drive-history-load-more{display:block;margin:10px auto 0;padding:8px 13px;border:1px solid #e6e8eb;border-radius:999px;background:#fff;color:#666b72;font:inherit;font-size:.75rem;cursor:pointer}
+.drive-history-load-more:disabled{opacity:.55;cursor:wait}
+.energy-module{margin-top:22px;padding-top:20px;border-top:1px solid #eceef1}
+.energy-module:first-child{margin-top:0;padding-top:0;border-top:0}
+.energy-module-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 14px}
+.energy-module-heading h3{margin:0;font-size:.96rem;font-weight:700}
+.energy-panel-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 8px}
+.energy-panel-heading strong{color:#34373c;font-size:.82rem}
+.energy-panel-heading span{color:#858991;font-size:.68rem}
+.energy-overview-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(260px,.9fr);gap:14px}
+.energy-panel{min-width:0;padding:15px;border:1px solid #e8eaed;border-radius:15px;background:#fff}
+.energy-panel-title{margin:0 0 8px;color:#464a50;font-size:.8rem;font-weight:650}
+.energy-panel .energy-history-chart{height:210px;margin-top:4px}
+.charge-daily-chart{height:240px}
+.charge-session-layout{display:grid;grid-template-columns:minmax(190px,.34fr) minmax(0,1fr);gap:14px;margin-top:14px}
+.charge-session-list{display:flex;flex-direction:column;gap:7px;max-height:460px;overflow:auto;padding-right:3px}
+.charge-session-list-title{margin:0 0 3px;color:#858991;font-size:.72rem}
+.charge-session-list-item{width:100%;padding:11px 12px;border:1px solid #e7e9ec;border-radius:12px;background:#fff;text-align:left;cursor:pointer}
+.charge-session-list-item.active{border-color:#e82127;background:#fff7f7}
+.charge-session-list-item strong,.charge-session-list-item span{display:block}
+.charge-session-list-item strong{color:#292c31;font-size:.78rem}
+.charge-session-list-item span{margin-top:4px;color:#858991;font-size:.7rem}
+.charge-session-detail{min-width:0;padding:15px;border:1px solid #e7e9ec;border-radius:15px;background:#fff}
+.charge-session-detail-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.charge-session-detail-heading>div{display:flex;flex-direction:column;gap:5px}
 .charge-session-detail-heading strong{font-size:.92rem}
 .charge-session-detail-heading span{color:#858991;font-size:.74rem}
-.charge-session-detail-heading select{max-width:250px;padding:8px 10px;border:1px solid #dfe1e5;border-radius:10px;background:#fff;color:#34373c;font:inherit;font-size:.75rem}
-.charge-session-chart{height:220px}
+.charge-session-summary{margin-bottom:12px}
+.charge-session-summary-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.charge-session-summary-heading strong{color:#292c31;font-size:.9rem}
+.charge-session-summary-heading span{color:#858991;font-size:.72rem}
+.charge-session-summary-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.charge-session-summary-metrics>span{padding:9px 10px;border:1px solid #eceef1;border-radius:11px;background:#fafbfc;color:#858991;font-size:.68rem}
+.charge-session-summary-metrics strong{display:block;margin-top:4px;color:#34373c;font-size:.78rem}
+.charge-session-chart{height:250px}
 .energy-history-note{color:#858991;font-size:.72rem;line-height:1.5}
 @media(max-width:900px){
   .vehicle-info-row{grid-template-columns:repeat(3,minmax(0,1fr))}
@@ -168,6 +189,10 @@
   .vehicle-location-slot .vehicle-location-card{min-height:210px}
   .current-charge-banner{grid-template-columns:auto 1fr 1fr}
   .current-charge-meta:last-child{grid-column:2/-1}
+  .energy-overview-grid{grid-template-columns:1fr}
+  .charge-session-layout{grid-template-columns:1fr}
+  .charge-session-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));max-height:230px}
+  .charge-session-list-title{grid-column:1/-1}
 }
 @media(max-width:640px){
   .vehicle-heading{align-items:flex-start}
@@ -181,13 +206,13 @@
   .vehicle-location-slot{grid-column:1/-1}
   .vehicle-info-row .metric{min-height:128px;padding:13px}
   .vehicle-info-row .metric strong{font-size:.9rem}
-  .drive-daily-metric{padding:9px 10px 6px}
-  .drive-daily-chart{height:118px}
-  .energy-history-tabs{width:100%;justify-content:space-between}
-  .energy-history-tabs button{flex:1;padding:8px 9px}
+  .drive-daily-chart-inner{height:280px}
+  .energy-panel{padding:11px}
+  .energy-panel .energy-history-chart{height:190px}
+  .charge-daily-chart{height:220px}
+  .charge-session-list{grid-template-columns:1fr;max-height:220px}
+  .charge-session-summary-metrics{grid-template-columns:1fr}
   .charge-session-detail{padding:11px}
-  .charge-session-detail-heading{align-items:flex-start;flex-direction:column}
-  .charge-session-detail-heading select{max-width:100%;width:100%}
 }
 
 .vehicle-sleep-pill{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #e2e4e8;border-radius:999px;background:#f7f8f9;color:#666b72;font-size:.75rem;font-weight:650;white-space:nowrap}

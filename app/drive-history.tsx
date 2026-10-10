@@ -5,6 +5,7 @@ import { Clock3, Route } from "lucide-react";
 import { convertGpsPoints, loadAMap, reverseGeocode, type AMapApi } from "@/lib/amap-client";
 import {
   CartesianGrid,
+  ComposedChart,
   Line,
   LineChart,
   Legend,
@@ -37,6 +38,8 @@ type Trends = Record<string, TrendPoint[]>;
 type DriveListResponse = {
   success: boolean;
   drives?: Drive[];
+  has_more?: boolean;
+  next_before?: string | null;
   error?: string;
 };
 
@@ -100,14 +103,6 @@ function adjustedChartDomain(
     ? [domainLow, domainHigh]
     : [domainLow, Math.min(maximum, domainLow + 1)];
 }
-
-type DailySummaryPoint = {
-  day: string;
-  distanceKm: number;
-  durationMinutes: number;
-  energyKwh: number;
-  driveCount: number;
-};
 
 function DailyMetricChart({
   data,
@@ -509,6 +504,85 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
   );
 }
 
+type DailySummaryPoint = {
+  day: string;
+  distanceKm: number;
+  durationMinutes: number;
+  energyKwh: number;
+  driveCount: number;
+};
+
+function DriveDailyTrendChart({
+  data,
+  width,
+}: {
+  data: DailySummaryPoint[];
+  width: number;
+}) {
+  const distanceDomain = adjustedChartDomain(data.map((item) => item.distanceKm));
+  const durationDomain = adjustedChartDomain(data.map((item) => item.durationMinutes));
+  const energyDomain = adjustedChartDomain(data.map((item) => item.energyKwh));
+  const labels: Record<string, string> = {
+    distanceKm: "行驶里程 · km",
+    durationMinutes: "驾驶时长 · 分钟",
+    energyKwh: "行程耗电 · kWh",
+  };
+
+  return (
+    <div className="drive-daily-chart-inner" style={{ width }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <ComposedChart data={data} margin={{ top: 12, right: 8, left: -16, bottom: 0 }}>
+          <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="day"
+            tickFormatter={(value) => dayFormatter.format(new Date(`${value}T12:00:00`))}
+            minTickGap={24}
+            tick={{ fontSize: 10, fill: "#858991" }}
+          />
+          <YAxis
+            yAxisId="distance"
+            width={54}
+            domain={distanceDomain}
+            allowDataOverflow
+            tick={{ fontSize: 10, fill: "#e82127" }}
+          />
+          <YAxis
+            yAxisId="duration"
+            orientation="right"
+            width={54}
+            domain={durationDomain}
+            allowDataOverflow
+            tick={{ fontSize: 10, fill: "#3186c8" }}
+          />
+          <YAxis
+            yAxisId="energy"
+            orientation="right"
+            mirror
+            width={54}
+            domain={energyDomain}
+            allowDataOverflow
+            tick={{ fontSize: 10, fill: "#d99019" }}
+          />
+          <Tooltip
+            labelFormatter={(value) => `日期：${dayFormatter.format(new Date(`${value}T12:00:00`))}`}
+            formatter={(value, name) => {
+              const key = String(name);
+              const unit = key === "distanceKm" ? "km" : key === "durationMinutes" ? "分钟" : "kWh";
+              const digits = key === "energyKwh" ? 2 : key === "distanceKm" ? 1 : 0;
+              return [`${Number(value).toFixed(digits)} ${unit}`, labels[key] ?? key];
+            }}
+            contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
+          />
+          <Legend formatter={(value) => labels[String(value)] ?? String(value)} />
+          <Line yAxisId="distance" type="monotone" dataKey="distanceKm" name="distanceKm" stroke="#e82127" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+          <Line yAxisId="duration" type="monotone" dataKey="durationMinutes" name="durationMinutes" stroke="#3186c8" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+          <Line yAxisId="energy" type="monotone" dataKey="energyKwh" name="energyKwh" stroke="#d99019" strokeWidth={2.5} dot={{ r: 2.5 }} activeDot={{ r: 5 }} isAnimationActive={false} />
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
 export default function DriveHistory() {
   const [drives, setDrives] = useState<Drive[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -521,7 +595,12 @@ export default function DriveHistory() {
   const [positionCount, setPositionCount] = useState(0);
   const [loadingList, setLoadingList] = useState(true);
   const [loadingRoute, setLoadingRoute] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [hasMoreDrives, setHasMoreDrives] = useState(false);
+  const [driveCursor, setDriveCursor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const dailyChartRef = useRef<HTMLDivElement>(null);
+  const previousDailyChartWidth = useRef(0);
 
   const loadRoute = useCallback(async (driveId: string) => {
     setSelectedId(driveId);
@@ -577,6 +656,8 @@ export default function DriveHistory() {
 
       const nextDrives = result.drives ?? [];
       setDrives(nextDrives);
+      setHasMoreDrives(result.has_more === true);
+      setDriveCursor(result.next_before ?? null);
 
       if (nextDrives.length > 0) {
         await loadRoute(nextDrives[0].id);
@@ -591,6 +672,35 @@ export default function DriveHistory() {
       setLoadingList(false);
     }
   }, [loadRoute]);
+
+  const loadOlderDrives = useCallback(async () => {
+    if (!hasMoreDrives || loadingOlder || !driveCursor) return;
+
+    setLoadingOlder(true);
+    try {
+      const response = await fetch(
+        `/api/tesla/drive-history?before=${encodeURIComponent(driveCursor)}`,
+        { cache: "no-store" }
+      );
+      const result = (await response.json()) as DriveListResponse;
+      if (!response.ok || !result.success) {
+        throw new Error(result.error ?? "更早的行程读取失败");
+      }
+
+      const olderDrives = result.drives ?? [];
+      setDrives((current) => {
+        const existingIds = new Set(current.map((drive) => drive.id));
+        return [...current, ...olderDrives.filter((drive) => !existingIds.has(drive.id))]
+          .sort((a, b) => b.started_at.localeCompare(a.started_at));
+      });
+      setHasMoreDrives(result.has_more === true && olderDrives.length > 0);
+      setDriveCursor(result.next_before ?? olderDrives[olderDrives.length - 1]?.started_at ?? null);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "更早的行程读取失败");
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [driveCursor, hasMoreDrives, loadingOlder]);
 
   useEffect(() => {
     void loadHistory();
@@ -632,6 +742,37 @@ export default function DriveHistory() {
       .sort((a, b) => a.day.localeCompare(b.day));
   }, [drives]);
 
+  const dailyChartWidth = Math.max(760, dailySummaries.length * 28 + 120);
+  useEffect(() => {
+    const container = dailyChartRef.current;
+    if (!container) return;
+
+    const nextWidth = container.scrollWidth;
+    if (previousDailyChartWidth.current === 0) {
+      container.scrollLeft = Math.max(0, nextWidth - container.clientWidth);
+    } else if (nextWidth > previousDailyChartWidth.current) {
+      container.scrollLeft += nextWidth - previousDailyChartWidth.current;
+    }
+    previousDailyChartWidth.current = nextWidth;
+  }, [dailySummaries.length]);
+
+  const loadOlderFromChart = () => {
+    if (dailyChartRef.current?.scrollLeft !== undefined &&
+        dailyChartRef.current.scrollLeft < 60 &&
+        hasMoreDrives &&
+        !loadingOlder) {
+      void loadOlderDrives();
+    }
+  };
+
+  const loadOlderFromList = (element: HTMLDivElement) => {
+    if (element.scrollHeight - element.scrollTop - element.clientHeight < 56 &&
+        hasMoreDrives &&
+        !loadingOlder) {
+      void loadOlderDrives();
+    }
+  };
+
   return (
     <section className="drive-history-card" aria-label="行程轨迹">
       <div className="drive-history-heading">
@@ -640,31 +781,14 @@ export default function DriveHistory() {
       </div>
 
       {!loadingList && dailySummaries.length > 0 && (
-        <section className="drive-daily-summary" aria-label="按日期行程趋势">
-          <DailyMetricChart
-            data={dailySummaries}
-            dataKey="distanceKm"
-            title="行驶里程"
-            unit="km"
-            color="#e82127"
-          />
-          <DailyMetricChart
-            data={dailySummaries}
-            dataKey="durationMinutes"
-            title="驾驶时长"
-            unit="分钟"
-            color="#3186c8"
-            precision={0}
-          />
-          <DailyMetricChart
-            data={dailySummaries}
-            dataKey="energyKwh"
-            title="行程耗电"
-            unit="kWh"
-            color="#d99019"
-            precision={2}
-          />
-        </section>
+        <div
+          className="drive-daily-scroll"
+          ref={dailyChartRef}
+          onScroll={loadOlderFromChart}
+          aria-label="按日期行程趋势图，可横向滚动查看更多历史日期"
+        >
+          <DriveDailyTrendChart data={dailySummaries} width={dailyChartWidth} />
+        </div>
       )}
 
       {error && <p className="drive-history-error">{error}</p>}
@@ -675,7 +799,11 @@ export default function DriveHistory() {
         <div className="drive-history-empty">暂无已完成的行程</div>
       ) : (
         <div className="drive-history-layout">
-          <div className="drive-list" aria-label="最近行程">
+          <div
+            className="drive-list"
+            aria-label="最近行程"
+            onScroll={(event) => loadOlderFromList(event.currentTarget)}
+          >
             {drives.map((drive) => {
               const active = drive.id === selectedId;
 
@@ -697,6 +825,16 @@ export default function DriveHistory() {
                 </button>
               );
             })}
+            {hasMoreDrives && (
+              <button
+                className="history-load-more"
+                type="button"
+                onClick={() => void loadOlderDrives()}
+                disabled={loadingOlder}
+              >
+                {loadingOlder ? "正在读取更早行程…" : "加载更早行程"}
+              </button>
+            )}
           </div>
 
           <div className="drive-route-panel">

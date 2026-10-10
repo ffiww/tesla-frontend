@@ -662,7 +662,6 @@ export default function Dashboard({
           <article className="facts-card quick-check-card">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">车辆与充电</p>
                 <h2>当前状态</h2>
               </div>
               <Unplug size={20} />
@@ -675,11 +674,11 @@ export default function Dashboard({
               </div>
               <div className="current-charge-meta">
                 <span>充电速度</span>
-                <strong>{display(snapshot?.chargeRateKmH, " km/h")}</strong>
+                <strong>{(snapshot?.chargingState === "Charging" ? display(snapshot?.chargeRateKmH, " km/h") : "—")}</strong>
               </div>
               <div className="current-charge-meta">
                 <span>预计充满</span>
-                <strong>{snapshot?.minutesToFullCharge ? `约 ${snapshot.minutesToFullCharge} 分钟` : "—"}</strong>
+                <strong>{snapshot?.chargingState === "Charging" && snapshot.minutesToFullCharge != null && Number.isFinite(Number(snapshot.minutesToFullCharge)) && Number(snapshot.minutesToFullCharge) > 0 ? `约 ${Math.max(1, Math.round(Number(snapshot.minutesToFullCharge)))} 分钟` : "—"}</strong>
               </div>
             </div>
             <ul className="quick-check-list">
