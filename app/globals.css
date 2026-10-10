@@ -151,7 +151,11 @@
 .drive-history-load-more:disabled{opacity:.55;cursor:wait}
 .energy-module{margin-top:22px;padding-top:20px;border-top:1px solid #eceef1}
 .energy-module:first-child{margin-top:0;padding-top:0;border-top:0}
-.energy-module-title{margin:0 0 14px;font-size:.96rem;font-weight:700}
+.energy-module-heading{display:flex;align-items:center;justify-content:space-between;margin:0 0 14px}
+.energy-module-heading h3{margin:0;font-size:.96rem;font-weight:700}
+.energy-panel-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0 0 8px}
+.energy-panel-heading strong{color:#34373c;font-size:.82rem}
+.energy-panel-heading span{color:#858991;font-size:.68rem}
 .energy-overview-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(260px,.9fr);gap:14px}
 .energy-panel{min-width:0;padding:15px;border:1px solid #e8eaed;border-radius:15px;background:#fff}
 .energy-panel-title{margin:0 0 8px;color:#464a50;font-size:.8rem;font-weight:650}
@@ -160,21 +164,23 @@
 .charge-session-layout{display:grid;grid-template-columns:minmax(190px,.34fr) minmax(0,1fr);gap:14px;margin-top:14px}
 .charge-session-list{display:flex;flex-direction:column;gap:7px;max-height:460px;overflow:auto;padding-right:3px}
 .charge-session-list-title{margin:0 0 3px;color:#858991;font-size:.72rem}
-.charge-session-item{width:100%;padding:11px 12px;border:1px solid #e7e9ec;border-radius:12px;background:#fff;text-align:left;cursor:pointer}
-.charge-session-item.active{border-color:#e82127;background:#fff7f7}
-.charge-session-item strong,.charge-session-item span{display:block}
-.charge-session-item strong{color:#292c31;font-size:.78rem}
-.charge-session-item span{margin-top:4px;color:#858991;font-size:.7rem}
+.charge-session-list-item{width:100%;padding:11px 12px;border:1px solid #e7e9ec;border-radius:12px;background:#fff;text-align:left;cursor:pointer}
+.charge-session-list-item.active{border-color:#e82127;background:#fff7f7}
+.charge-session-list-item strong,.charge-session-list-item span{display:block}
+.charge-session-list-item strong{color:#292c31;font-size:.78rem}
+.charge-session-list-item span{margin-top:4px;color:#858991;font-size:.7rem}
 .charge-session-detail{min-width:0;padding:15px;border:1px solid #e7e9ec;border-radius:15px;background:#fff}
 .charge-session-detail-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
 .charge-session-detail-heading>div{display:flex;flex-direction:column;gap:5px}
 .charge-session-detail-heading strong{font-size:.92rem}
 .charge-session-detail-heading span{color:#858991;font-size:.74rem}
-.charge-session-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:12px}
-.charge-session-summary>div{padding:9px 10px;border:1px solid #eceef1;border-radius:11px;background:#fafbfc}
-.charge-session-summary span,.charge-session-summary strong{display:block}
-.charge-session-summary span{color:#858991;font-size:.68rem}
-.charge-session-summary strong{margin-top:4px;color:#34373c;font-size:.78rem}
+.charge-session-summary{margin-bottom:12px}
+.charge-session-summary-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:10px}
+.charge-session-summary-heading strong{color:#292c31;font-size:.9rem}
+.charge-session-summary-heading span{color:#858991;font-size:.72rem}
+.charge-session-summary-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.charge-session-summary-metrics>span{padding:9px 10px;border:1px solid #eceef1;border-radius:11px;background:#fafbfc;color:#858991;font-size:.68rem}
+.charge-session-summary-metrics strong{display:block;margin-top:4px;color:#34373c;font-size:.78rem}
 .charge-session-chart{height:250px}
 .energy-history-note{color:#858991;font-size:.72rem;line-height:1.5}
 @media(max-width:900px){
@@ -205,7 +211,7 @@
   .energy-panel .energy-history-chart{height:190px}
   .charge-daily-chart{height:220px}
   .charge-session-list{grid-template-columns:1fr;max-height:220px}
-  .charge-session-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .charge-session-summary-metrics{grid-template-columns:1fr}
   .charge-session-detail{padding:11px}
 }
 
