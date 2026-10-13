@@ -33,7 +33,7 @@ type Position = {
   longitude: number;
 };
 
-type TrendPoint = { recorded_at: string; value: number | string | null };
+type TrendPoint = { recorded_at: string; value: number | string | boolean | null };
 type Trends = Record<string, TrendPoint[]>;
 
 type DriveListResponse = {
@@ -73,6 +73,18 @@ function localDayKey(value: string) {
     String(date.getMonth() + 1).padStart(2, "0"),
     String(date.getDate()).padStart(2, "0"),
   ].join("-");
+}
+
+function calendarDayKeys(startDay: string, endDate = new Date()) {
+  const [year, month, day] = startDay.split("-").map(Number);
+  const cursor = new Date(year, month - 1, day, 12);
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 12);
+  const days: string[] = [];
+  while (cursor <= end) {
+    days.push(localDayKey(cursor.toISOString()));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
 }
 
 function totalDurationLabel(minutes: number) {
@@ -437,26 +449,42 @@ function DriveEndpointNames({
 }
 
 function DriveTrendChart({ trends }: { trends: Trends }) {
-  const [metric, setMetric] = useState<"speed" | "battery" | "energy">("speed");
+  const [metric, setMetric] = useState<"driving" | "battery" | "energy" | "pedals" | "climate" | "tires">("driving");
   const [hiddenSeries, setHiddenSeries] = useState<string[]>([]);
   const toggleSeries = (key: string) => setHiddenSeries((current) =>
     current.includes(key) ? current.filter((item) => item !== key) : [...current, key]
   );
   const chartData = useMemo(() => {
-    const values = new Map<number, Record<string, any>>();
+    type TrendChartRow = {
+      timestamp: number;
+      label: string;
+      [key: string]: number | string | boolean;
+    };
+    const values = new Map<number, TrendChartRow>();
     const config = [
       ["VehicleSpeed", "speed", 1.609344],
+      ["LongitudinalAcceleration", "longitudinalAcceleration", 1],
+      ["LateralAcceleration", "lateralAcceleration", 1],
       ["BatteryLevel", "battery", 1],
       ["Soc", "soc", 1],
       ["LifetimeEnergyUsed", "energy", 1],
       ["Odometer", "odometer", 1.609344],
+      ["PedalPosition", "pedalPosition", 1],
+      ["BrakePedalPos", "brakePressure", 1],
+      ["InsideTemp", "insideTemp", 1],
+      ["OutsideTemp", "outsideTemp", 1],
+      ["TpmsPressureFl", "tireFl", 1],
+      ["TpmsPressureFr", "tireFr", 1],
+      ["TpmsPressureRl", "tireRl", 1],
+      ["TpmsPressureRr", "tireRr", 1],
+      ["DriveRail", "driveRail", 1],
     ] as const;
     const firstEnergy = trends.LifetimeEnergyUsed?.find((point) => typeof point.value === "number")?.value;
     const firstOdometer = trends.Odometer?.find((point) => typeof point.value === "number")?.value;
 
     for (const [field, key, multiplier] of config) {
       for (const point of trends[field] ?? []) {
-        if (typeof point.value !== "number") continue;
+        if (typeof point.value !== "number" && !(key === "driveRail" && typeof point.value === "boolean")) continue;
         const timestamp = new Date(point.recorded_at).getTime();
         if (!Number.isFinite(timestamp)) continue;
         if (!values.has(timestamp)) {
@@ -465,12 +493,18 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
             label: dateFormatter.format(new Date(timestamp)),
           });
         }
-        const value =
-          key === "energy" && typeof firstEnergy === "number"
+        let value: number;
+        if (key === "driveRail") {
+          value = point.value === true ? 1 : 0;
+        } else if (typeof point.value === "number") {
+          value = key === "energy" && typeof firstEnergy === "number"
             ? (point.value - firstEnergy) * 1000
             : key === "odometer" && typeof firstOdometer === "number"
               ? (point.value - firstOdometer) * multiplier
               : point.value * multiplier;
+        } else {
+          continue;
+        }
         values.get(timestamp)![key] = value;
       }
     }
@@ -478,7 +512,7 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
     const latest: Record<string, number | undefined> = {};
     return ordered.map((point) => {
       const filled = { ...point };
-      for (const key of ["battery", "soc", "energy", "odometer"]) {
+      for (const key of config.map(([, name]) => name)) {
         if (typeof filled[key] === "number") {
           latest[key] = filled[key];
         } else if (latest[key] !== undefined) {
@@ -488,21 +522,78 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
       return filled;
     });
   }, [trends]);
+  const driveRailValues = (trends.DriveRail ?? [])
+    .map((point) => point.value)
+    .filter((value): value is boolean => typeof value === "boolean");
+  const driveRailOnCount = driveRailValues.filter(Boolean).length;
 
   const tabs = {
-    speed: { label: "速度", keys: ["speed"] },
+    driving: { label: "速度与加速度", keys: ["speed", "longitudinalAcceleration", "lateralAcceleration"] },
     battery: { label: "电量 / SOC", keys: ["battery", "soc"] },
     energy: { label: "能耗与里程", keys: ["energy", "odometer"] },
+    pedals: { label: "油门与制动", keys: ["pedalPosition", "brakePressure"] },
+    climate: { label: "内外温度", keys: ["insideTemp", "outsideTemp"] },
+    tires: { label: "胎压", keys: ["tireFl", "tireFr", "tireRl", "tireRr"] },
   } as const;
   const current = tabs[metric];
   const labels: Record<string, string> = {
     speed: "速度 (km/h)",
+    longitudinalAcceleration: "纵向加速度 (m/s²)",
+    lateralAcceleration: "横向加速度 (m/s²)",
     battery: "电池电量 (%)",
     soc: "SOC (%)",
     energy: "行程内能耗 (Wh)",
     odometer: "行程内里程 (km)",
+    pedalPosition: "油门位置（原始值）",
+    brakePressure: "制动主缸压力（原始值）",
+    insideTemp: "车内温度 (°C)",
+    outsideTemp: "车外温度 (°C)",
+    tireFl: "左前胎压 (bar)",
+    tireFr: "右前胎压 (bar)",
+    tireRl: "左后胎压 (bar)",
+    tireRr: "右后胎压 (bar)",
   };
-  const rightAxisKeys = metric === "energy" ? ["odometer"] : [];
+  const colors: Record<string, string> = {
+    speed: "#e82127",
+    longitudinalAcceleration: "#3186c8",
+    lateralAcceleration: "#815ac0",
+    battery: "#e82127",
+    soc: "#3186c8",
+    energy: "#e82127",
+    odometer: "#3186c8",
+    pedalPosition: "#e82127",
+    brakePressure: "#3186c8",
+    insideTemp: "#e82127",
+    outsideTemp: "#3186c8",
+    tireFl: "#e82127",
+    tireFr: "#3186c8",
+    tireRl: "#815ac0",
+    tireRr: "#23a36d",
+  };
+  const rightAxisKeys = metric === "energy"
+    ? ["odometer"]
+    : metric === "driving"
+      ? ["longitudinalAcceleration", "lateralAcceleration"]
+      : metric === "pedals"
+        ? ["brakePressure"]
+        : [];
+  const unitForKey: Record<string, string> = {
+    speed: "km/h",
+    longitudinalAcceleration: "m/s²",
+    lateralAcceleration: "m/s²",
+    battery: "%",
+    soc: "%",
+    energy: "Wh",
+    odometer: "km",
+    pedalPosition: "",
+    brakePressure: "",
+    insideTemp: "°C",
+    outsideTemp: "°C",
+    tireFl: "bar",
+    tireFr: "bar",
+    tireRl: "bar",
+    tireRr: "bar",
+  };
   const leftDomain = useMemo(() => {
     const leftKeys = current.keys.filter((key) => !rightAxisKeys.includes(key) && !hiddenSeries.includes(key));
     const values = chartData.flatMap((point) =>
@@ -510,18 +601,29 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
         .map((key) => point[key])
         .filter((value): value is number => typeof value === "number")
     );
+    const minimum = metric === "battery"
+      ? 0
+      : values.some((value) => value < 0)
+        ? Number.NEGATIVE_INFINITY
+        : 0;
     return adjustedChartDomain(
       values,
-      0,
+      minimum,
       metric === "battery" ? 100 : Number.POSITIVE_INFINITY
     );
   }, [chartData, current.keys, metric, rightAxisKeys, hiddenSeries]);
   const rightDomain = useMemo(() => {
-    const values = hiddenSeries.includes("odometer") ? [] : chartData
-      .map((point) => point.odometer)
-      .filter((value): value is number => typeof value === "number");
-    return adjustedChartDomain(values);
-  }, [chartData, hiddenSeries]);
+    const values = chartData.flatMap((point) =>
+      rightAxisKeys
+        .filter((key) => !hiddenSeries.includes(key))
+        .map((key) => point[key])
+        .filter((value): value is number => typeof value === "number")
+    );
+    return adjustedChartDomain(
+      values,
+      values.some((value) => value < 0) ? Number.NEGATIVE_INFINITY : 0
+    );
+  }, [chartData, hiddenSeries, rightAxisKeys]);
   const hasData = chartData.some((point) => current.keys.some((key) => !hiddenSeries.includes(key) && point[key] != null));
 
   return (
@@ -529,7 +631,7 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
       <div className="drive-detail-heading">
         <h3>行程参数曲线</h3>
         <div className="drive-trend-tabs" role="tablist" aria-label="行程趋势类型">
-          {(["speed", "battery", "energy"] as const).map((key) => (
+          {(["driving", "battery", "energy", "pedals", "climate", "tires"] as const).map((key) => (
             <button key={key} type="button" className={metric === key ? "active" : ""}
               role="tab" aria-selected={metric === key} onClick={() => setMetric(key)}>
               {tabs[key].label}
@@ -542,30 +644,30 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
       ) : (
         <div className="drive-chart">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData} margin={{ top: 14, right: metric === "energy" ? 8 : 12, left: -18, bottom: 0 }}>
+            <LineChart data={chartData} margin={{ top: 14, right: rightAxisKeys.length ? 8 : 12, left: -18, bottom: 0 }}>
               <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
               <XAxis dataKey="timestamp"
                 tickFormatter={(value) => new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(value))}
                 minTickGap={32} tick={{ fontSize: 11, fill: "#858991" }} />
               <YAxis yAxisId="left" width={55} domain={leftDomain} allowDataOverflow
-                tickFormatter={(value) => formatAxisTick(Number(value), metric === "speed" ? "km/h" : metric === "battery" ? "%" : "Wh")}
+                tickFormatter={(value) => formatAxisTick(Number(value), unitForKey[current.keys.find((key) => !rightAxisKeys.includes(key)) ?? current.keys[0]])}
                 tick={{ fontSize: 11, fill: "#858991" }} />
-              {metric === "energy" && !hiddenSeries.includes("odometer") && (
+              {rightAxisKeys.some((key) => !hiddenSeries.includes(key)) && (
                 <YAxis yAxisId="right" orientation="right" width={55} domain={rightDomain} allowDataOverflow
-                  tickFormatter={(value) => formatAxisTick(Number(value), "km")}
+                  tickFormatter={(value) => formatAxisTick(Number(value), unitForKey[rightAxisKeys[0]])}
                   tick={{ fontSize: 11, fill: "#858991" }} />
               )}
               <Tooltip
                 position={{ x: 62, y: 6 }}
                 cursor={{ stroke: "#8d9299", strokeDasharray: "4 4" }}
                 labelFormatter={(value) => dateFormatter.format(new Date(value))}
-                formatter={(value, name) => [formatAxisTick(Number(value), rightAxisKeys.includes(String(name)) ? "km" : metric === "speed" ? "km/h" : metric === "battery" ? "%" : "Wh"), labels[String(name)] ?? String(name)]}
+                formatter={(value, name) => [formatAxisTick(Number(value), unitForKey[String(name)]), labels[String(name)] ?? String(name)]}
                 contentStyle={{ borderRadius: 10, boxShadow: "0 8px 24px rgba(22,24,29,.12)" }}
               />
               {current.keys.filter((key) => !hiddenSeries.includes(key)).map((key) => (
                 <Line key={key} yAxisId={rightAxisKeys.includes(key) ? "right" : "left"}
-                  type={["battery", "soc", "energy", "odometer"].includes(key) ? "stepAfter" : "monotone"} dataKey={key} name={key}
-                  stroke={key === "soc" || key === "odometer" ? "#3186c8" : "#e82127"}
+                  type="stepAfter" dataKey={key} name={key}
+                  stroke={colors[key]}
                   strokeWidth={2} dot={false} activeDot={{ r: 4 }} connectNulls isAnimationActive={false} />
               ))}
             </LineChart>
@@ -573,12 +675,17 @@ function DriveTrendChart({ trends }: { trends: Trends }) {
         </div>
       )}
       <ClickableChartLegend
-        items={current.keys.map((key) => ({ key, label: labels[key], color: key === "soc" || key === "odometer" ? "#3186c8" : "#e82127" }))}
+        items={current.keys.map((key) => ({ key, label: labels[key], color: colors[key] }))}
         hidden={hiddenSeries}
         onToggle={toggleSeries}
       />
+      {metric === "driving" && driveRailValues.length > 0 && (
+        <p className="route-note">
+          DriveRail 状态事件：已就绪 {driveRailOnCount} 条、未就绪 {driveRailValues.length - driveRailOnCount} 条；当前用于和 Gear 对照验证行程边界。
+        </p>
+      )}
       <p className="route-note">
-        曲线来自本次行程时间范围内收到的 Tesla 遥测；速度按 mph 换算为 km/h，能耗和里程显示行程内变化量。
+        曲线按 Tesla 遥测事件时间绘制，并在事件之间延续最近值；速度按 mph 换算为 km/h。
       </p>
     </div>
   );
@@ -897,16 +1004,26 @@ export default function DriveHistory() {
       groups.set(key, summary);
     }
 
-    return [...groups.entries()]
-      .map(([day, summary]) => ({
+    if (groups.size === 0) return [];
+    const firstDay = [...groups.keys()].sort()[0];
+    return calendarDayKeys(firstDay).map((day) => {
+      const summary = groups.get(day) ?? {
+        distanceKm: 0,
+        durationMinutes: 0,
+        energyKwh: 0,
+        batteryConsumptionPct: 0,
+        batterySampleCount: 0,
+        driveCount: 0,
+      };
+      return {
         day,
         distanceKm: summary.distanceKm,
         durationMinutes: summary.durationMinutes,
         energyKwh: summary.energyKwh,
         batteryConsumptionPct: summary.batterySampleCount > 0 ? summary.batteryConsumptionPct : null,
         driveCount: summary.driveCount,
-      }))
-      .sort((a, b) => a.day.localeCompare(b.day));
+      };
+    });
   }, [drives]);
 
   const dailyChartWidth = Math.max(760, dailySummaries.length * 28 + 120);
@@ -1084,3 +1201,4 @@ export default function DriveHistory() {
     </section>
   );
 }
+
