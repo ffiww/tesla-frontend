@@ -67,6 +67,18 @@ function localDayKey(value: string) {
   ].join("-");
 }
 
+function recentDayKeys(days: number) {
+  const cursor = new Date();
+  cursor.setHours(12, 0, 0, 0);
+  cursor.setDate(cursor.getDate() - days + 1);
+  const keys: string[] = [];
+  for (let index = 0; index < days; index += 1) {
+    keys.push(localDayKey(cursor.toISOString()));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return keys;
+}
+
 function adjustedDomain(
   values: number[],
   minimum = 0,
@@ -196,15 +208,30 @@ export default function EnergyHistory() {
       }
     }
     const ordered = [...points.values()].sort((a, b) => a.timestamp - b.timestamp);
+    if (ordered.length === 0) return [];
+    const intervalMs = 5 * 60 * 1000;
+    const timestamps = new Set(ordered.map((point) => point.timestamp));
+    for (
+      let timestamp = Math.ceil(ordered[0].timestamp / intervalMs) * intervalMs;
+      timestamp <= ordered[ordered.length - 1].timestamp;
+      timestamp += intervalMs
+    ) {
+      timestamps.add(timestamp);
+    }
+    const timeline = [...timestamps].sort((a, b) => a - b);
     let latestBattery: number | undefined;
     let latestSoc: number | undefined;
-    return ordered.map((point) => {
-      if (point.battery !== undefined) latestBattery = point.battery;
-      if (point.soc !== undefined) latestSoc = point.soc;
+    let sourceIndex = 0;
+    return timeline.map((timestamp) => {
+      while (sourceIndex < ordered.length && ordered[sourceIndex].timestamp <= timestamp) {
+        if (ordered[sourceIndex].battery !== undefined) latestBattery = ordered[sourceIndex].battery;
+        if (ordered[sourceIndex].soc !== undefined) latestSoc = ordered[sourceIndex].soc;
+        sourceIndex += 1;
+      }
       return {
-        ...point,
-        battery: point.battery ?? latestBattery,
-        soc: point.soc ?? latestSoc,
+        timestamp,
+        battery: latestBattery,
+        soc: latestSoc,
       };
     });
   }, [history]);
@@ -219,7 +246,13 @@ export default function EnergyHistory() {
       item.driveCount += 1;
       groups.set(day, item);
     }
-    return [...groups.values()].sort((a, b) => a.day.localeCompare(b.day));
+    const days = recentDayKeys(90);
+    return days.map((day) => groups.get(day) ?? {
+      day,
+      energyKwh: 0,
+      distanceKm: 0,
+      driveCount: 0,
+    });
   }, [history]);
 
   const chargeData = useMemo(
@@ -237,7 +270,7 @@ export default function EnergyHistory() {
     const groups = new Map<string, {
       day: string;
       energyKwh: number;
-      maxPowerKw: number | null;
+      maxPowerKw: number;
       sessionCount: number;
     }>();
     for (const session of chargeData) {
@@ -245,7 +278,7 @@ export default function EnergyHistory() {
       const item = groups.get(day) ?? {
         day,
         energyKwh: 0,
-        maxPowerKw: null,
+        maxPowerKw: 0,
         sessionCount: 0,
       };
       item.energyKwh += session.energy_added_kwh ?? 0;
@@ -255,7 +288,13 @@ export default function EnergyHistory() {
       item.sessionCount += 1;
       groups.set(day, item);
     }
-    return [...groups.values()].sort((a, b) => a.day.localeCompare(b.day));
+    const days = recentDayKeys(90);
+    return days.map((day) => groups.get(day) ?? {
+      day,
+      energyKwh: 0,
+      maxPowerKw: 0,
+      sessionCount: 0,
+    });
   }, [chargeData]);
 
   const chargePoints = useMemo(
@@ -523,3 +562,4 @@ export default function EnergyHistory() {
     </article>
   );
 }
+
