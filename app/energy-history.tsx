@@ -14,13 +14,24 @@ import {
   YAxis,
 } from "recharts";
 
-type Point = { recorded_at: string; value: number };
-type Drive = {
+export type TrendDateRange = {
+  from: string | null;
+  to: string;
+  all: boolean;
+};
+
+export type HistoryDrive = {
   id: string;
   started_at: string;
+  ended_at: string | null;
   energy_used_kwh: number | null;
   distance_km: number | null;
+  start_battery_level: number | null;
+  end_battery_level: number | null;
 };
+
+type Point = { recorded_at: string; value: number };
+type Drive = HistoryDrive;
 type ChargingSession = {
   id: string;
   started_at: string;
@@ -38,8 +49,11 @@ type ChargePoint = {
   battery_level: number | null;
   charge_power_kw: number | null;
 };
-type HistoryResponse = {
+export type EnergyHistoryData = {
   success: boolean;
+  range_start?: string | null;
+  range_end?: string | null;
+  range_all?: boolean;
   battery?: { BatteryLevel?: Point[]; Soc?: Point[] };
   drives?: Drive[];
   charging_sessions?: ChargingSession[];
@@ -67,16 +81,36 @@ function localDayKey(value: string) {
   ].join("-");
 }
 
-function recentDayKeys(days: number) {
-  const cursor = new Date();
-  cursor.setHours(12, 0, 0, 0);
-  cursor.setDate(cursor.getDate() - days + 1);
+function localDateKey(date: Date) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function dateKeysBetween(startDay: string, endDay: string) {
+  const cursor = new Date(`${startDay}T12:00:00`);
+  const end = new Date(`${endDay}T12:00:00`);
+  if (!Number.isFinite(cursor.getTime()) || !Number.isFinite(end.getTime()) || cursor > end) {
+    return [];
+  }
   const keys: string[] = [];
-  for (let index = 0; index < days; index += 1) {
-    keys.push(localDayKey(cursor.toISOString()));
+  while (cursor <= end) {
+    keys.push(localDateKey(cursor));
     cursor.setDate(cursor.getDate() + 1);
   }
   return keys;
+}
+
+function dateStartTimestamp(day: string) {
+  return new Date(`${day}T00:00:00`).getTime();
+}
+
+function dateAfterEndTimestamp(day: string) {
+  const cursor = new Date(`${day}T00:00:00`);
+  cursor.setDate(cursor.getDate() + 1);
+  return cursor.getTime();
 }
 
 function adjustedDomain(
@@ -153,8 +187,14 @@ function sessionDuration(session: ChargingSession) {
   return hours > 0 ? `${hours}小时${rest}分钟` : `${rest}分钟`;
 }
 
-export default function EnergyHistory() {
-  const [history, setHistory] = useState<HistoryResponse | null>(null);
+export default function EnergyHistory({
+  dateRange,
+  onHistoryLoaded,
+}: {
+  dateRange: TrendDateRange;
+  onHistoryLoaded: (history: EnergyHistoryData) => void;
+}) {
+  const [history, setHistory] = useState<EnergyHistoryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedChargeSessionId, setSelectedChargeSessionId] = useState("");
@@ -167,13 +207,24 @@ export default function EnergyHistory() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/tesla/energy-history", { cache: "no-store" })
+    setLoading(true);
+    setError(null);
+    const params = new URLSearchParams({ to: dateRange.to });
+    if (dateRange.all) {
+      params.set("all", "1");
+    } else if (dateRange.from) {
+      params.set("from", dateRange.from);
+    }
+    fetch(`/api/tesla/energy-history?${params.toString()}`, { cache: "no-store" })
       .then(async (response) => {
-        const result = (await response.json()) as HistoryResponse;
+        const result = (await response.json()) as EnergyHistoryData;
         if (!response.ok || !result.success) {
           throw new Error(result.error ?? "历史能量数据读取失败");
         }
-        if (active) setHistory(result);
+        if (active) {
+          setHistory(result);
+          onHistoryLoaded(result);
+        }
       })
       .catch((loadError) => {
         if (active) {
@@ -190,7 +241,12 @@ export default function EnergyHistory() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [dateRange, onHistoryLoaded]);
+
+  const selectedDayKeys = useMemo(() => {
+    const firstDay = dateRange.from ?? history?.range_start ?? dateRange.to;
+    return dateKeysBetween(firstDay, dateRange.to);
+  }, [dateRange, history?.range_start]);
 
   const batteryData = useMemo(() => {
     const points = new Map<number, { timestamp: number; battery?: number; soc?: number }>();
@@ -207,17 +263,32 @@ export default function EnergyHistory() {
         }
       }
     }
+
     const ordered = [...points.values()].sort((a, b) => a.timestamp - b.timestamp);
-    if (ordered.length === 0) return [];
-    const intervalMs = 5 * 60 * 1000;
-    const timestamps = new Set(ordered.map((point) => point.timestamp));
+    if (ordered.length === 0 || selectedDayKeys.length === 0) return [];
+
+    const startTimestamp = dateStartTimestamp(selectedDayKeys[0]);
+    const endExclusive = dateAfterEndTimestamp(selectedDayKeys[selectedDayKeys.length - 1]);
+    const duration = Math.max(0, endExclusive - startTimestamp);
+    const baseIntervalMs = 5 * 60 * 1000;
+    const intervalMs = Math.max(
+      baseIntervalMs,
+      Math.ceil(duration / (8000 * baseIntervalMs)) * baseIntervalMs
+    );
+    const timestamps = new Set<number>([startTimestamp, endExclusive - 1]);
+    for (const point of ordered) {
+      if (point.timestamp >= startTimestamp && point.timestamp < endExclusive) {
+        timestamps.add(point.timestamp);
+      }
+    }
     for (
-      let timestamp = Math.ceil(ordered[0].timestamp / intervalMs) * intervalMs;
-      timestamp <= ordered[ordered.length - 1].timestamp;
+      let timestamp = startTimestamp + intervalMs;
+      timestamp < endExclusive;
       timestamp += intervalMs
     ) {
       timestamps.add(timestamp);
     }
+
     const timeline = [...timestamps].sort((a, b) => a - b);
     let latestBattery: number | undefined;
     let latestSoc: number | undefined;
@@ -228,13 +299,9 @@ export default function EnergyHistory() {
         if (ordered[sourceIndex].soc !== undefined) latestSoc = ordered[sourceIndex].soc;
         sourceIndex += 1;
       }
-      return {
-        timestamp,
-        battery: latestBattery,
-        soc: latestSoc,
-      };
+      return { timestamp, battery: latestBattery, soc: latestSoc };
     });
-  }, [history]);
+  }, [history, selectedDayKeys]);
 
   const driveDailyData = useMemo(() => {
     const groups = new Map<string, { day: string; energyKwh: number; distanceKm: number; driveCount: number }>();
@@ -246,14 +313,13 @@ export default function EnergyHistory() {
       item.driveCount += 1;
       groups.set(day, item);
     }
-    const days = recentDayKeys(90);
-    return days.map((day) => groups.get(day) ?? {
+    return selectedDayKeys.map((day) => groups.get(day) ?? {
       day,
       energyKwh: 0,
       distanceKm: 0,
       driveCount: 0,
     });
-  }, [history]);
+  }, [history?.drives, selectedDayKeys]);
 
   const chargeData = useMemo(
     () =>
@@ -284,18 +350,17 @@ export default function EnergyHistory() {
       item.energyKwh += session.energy_added_kwh ?? 0;
       item.maxPowerKw = session.max_power_kw == null
         ? item.maxPowerKw
-        : Math.max(item.maxPowerKw ?? 0, session.max_power_kw);
+        : Math.max(item.maxPowerKw, session.max_power_kw);
       item.sessionCount += 1;
       groups.set(day, item);
     }
-    const days = recentDayKeys(90);
-    return days.map((day) => groups.get(day) ?? {
+    return selectedDayKeys.map((day) => groups.get(day) ?? {
       day,
       energyKwh: 0,
       maxPowerKw: 0,
       sessionCount: 0,
     });
-  }, [chargeData]);
+  }, [chargeData, selectedDayKeys]);
 
   const chargePoints = useMemo(
     () =>
@@ -406,7 +471,7 @@ export default function EnergyHistory() {
                   <span>单位：kWh</span>
                 </div>
                 {driveDailyData.length === 0 ? (
-                  <div className="energy-history-empty">近 90 天没有已完成的行程记录。</div>
+                  <div className="energy-history-empty">所选周期内没有已完成的行程记录。</div>
                 ) : (
                   <div className="energy-history-chart">
                     <ResponsiveContainer width="100%" height="100%">
@@ -441,7 +506,7 @@ export default function EnergyHistory() {
             </div>
             {chargeDailyData.length === 0 ? (
               <div className="energy-history-empty">
-                近 90 天没有充电会话记录；收到充电遥测后会显示按日趋势和单次充电详情。
+                所选周期内没有充电会话记录；收到充电遥测后会显示按日趋势和单次充电详情。
               </div>
             ) : (
               <>
