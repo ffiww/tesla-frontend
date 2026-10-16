@@ -246,3 +246,16 @@
 .trend-range-apply{border-radius:10px;background:#fa625d;color:#fff;border-color:#fa625d}
 .trend-range-apply:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:640px){.trend-range-card{align-items:flex-start;flex-direction:column;padding:14px}.trend-range-controls{width:100%;gap:6px}.trend-range-option{padding:7px 10px;font-size:.72rem}.trend-range-custom{align-items:stretch;flex-direction:column}.trend-range-custom label,.trend-range-custom input{width:100%}.trend-range-apply{align-self:flex-start}}
+
+
+/* Daily charging and drive energy share one calendar range, shown as aligned panels. */
+.energy-overview-grid.energy-trend-grid{grid-template-columns:minmax(0,1fr)}
+.daily-energy-stack{display:grid;gap:10px}
+.daily-energy-subchart{height:205px;min-width:0}
+.daily-energy-subchart:first-child{height:185px}
+.daily-energy-subchart .chart-legend{margin-left:38px}
+@media(max-width:640px){
+  .daily-energy-subchart{height:190px}
+  .daily-energy-subchart:first-child{height:175px}
+  .daily-energy-subchart .chart-legend{margin-left:30px}
+}
