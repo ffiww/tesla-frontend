@@ -1,7 +1,7 @@
 "use client";
 
 import DriveHistory from "./drive-history";
-import EnergyHistory from "./energy-history";
+import EnergyHistory, { type EnergyHistoryData, type TrendDateRange } from "./energy-history";
 import VehicleLocationCard from "./vehicle-location";
 
 import {
@@ -164,6 +164,32 @@ export default function Dashboard({
 }) {
   const [data, setData] =
     useState<VehiclePayload | null>(null);
+  const [trendHistory, setTrendHistory] =
+    useState<EnergyHistoryData | null>(null);
+  const [rangePreset, setRangePreset] =
+    useState<"7" | "30" | "90" | "all" | "custom">("30");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [appliedCustomRange, setAppliedCustomRange] =
+    useState<{ from: string; to: string } | null>(null);
+
+  const todayKey = useMemo(() => {
+    const now = new Date();
+    return [now.getFullYear(), String(now.getMonth() + 1).padStart(2, "0"), String(now.getDate()).padStart(2, "0")].join("-");
+  }, []);
+
+  const dateRange = useMemo<TrendDateRange>(() => {
+    if (rangePreset === "all") return { from: null, to: todayKey, all: true };
+    if (rangePreset === "custom" && appliedCustomRange) {
+      return { ...appliedCustomRange, all: false };
+    }
+    const days = rangePreset === "7" ? 7 : rangePreset === "90" ? 90 : 30;
+    const start = new Date();
+    start.setHours(12, 0, 0, 0);
+    start.setDate(start.getDate() - days + 1);
+    const from = [start.getFullYear(), String(start.getMonth() + 1).padStart(2, "0"), String(start.getDate()).padStart(2, "0")].join("-");
+    return { from, to: todayKey, all: false };
+  }, [rangePreset, appliedCustomRange, todayKey]);
 
   const [loading, setLoading] =
     useState(false);
@@ -748,8 +774,52 @@ export default function Dashboard({
           </div>
         </section>
 
-        <DriveHistory />
-        <EnergyHistory />
+        <section className="trend-range-card" aria-label="趋势日期范围">
+          <div className="trend-range-heading">
+            <strong>趋势周期</strong>
+            <span>统一筛选历史行程、电量与能耗、充电趋势</span>
+          </div>
+          <div className="trend-range-controls">
+            {([
+              ["7", "近7天"],
+              ["30", "近30天"],
+              ["90", "近90天"],
+              ["all", "全部"],
+              ["custom", "自定义"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={rangePreset === value ? "trend-range-option active" : "trend-range-option"}
+                aria-pressed={rangePreset === value}
+                onClick={() => setRangePreset(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {rangePreset === "custom" && (
+            <form
+              className="trend-range-custom"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (customFrom && customTo && customFrom <= customTo) {
+                  setAppliedCustomRange({ from: customFrom, to: customTo });
+                }
+              }}
+            >
+              <label>开始日期<input type="date" value={customFrom} max={customTo || todayKey} onChange={(event) => setCustomFrom(event.target.value)} required /></label>
+              <label>结束日期<input type="date" value={customTo} min={customFrom || undefined} max={todayKey} onChange={(event) => setCustomTo(event.target.value)} required /></label>
+              <button className="trend-range-apply" type="submit" disabled={!customFrom || !customTo || customFrom > customTo}>应用</button>
+            </form>
+          )}
+        </section>
+        <DriveHistory
+          dateRange={dateRange}
+          trendDrives={trendHistory?.drives ?? []}
+          historyStart={trendHistory?.range_start ?? null}
+        />
+        <EnergyHistory dateRange={dateRange} onHistoryLoaded={setTrendHistory} />
 
       </section>
 

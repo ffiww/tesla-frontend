@@ -152,14 +152,17 @@ export async function GET(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const response = await fetch(
-      "https://api.ffiww.com/api/tesla/drive-history?view=energy",
-      {
-        method: "GET",
-        headers: { "x-internal-api-secret": internalApiSecret },
-        cache: "no-store",
-      }
-    );
+    const target = new URL("https://api.ffiww.com/api/tesla/drive-history");
+    target.searchParams.set("view", "energy");
+    for (const key of ["from", "to", "all"]) {
+      const value = request.nextUrl.searchParams.get(key);
+      if (value) target.searchParams.set(key, value);
+    }
+    const response = await fetch(target, {
+      method: "GET",
+      headers: { "x-internal-api-secret": internalApiSecret },
+      cache: "no-store",
+    });
     const data = await response.json();
     return NextResponse.json(
       { ...data, authenticated: true },
