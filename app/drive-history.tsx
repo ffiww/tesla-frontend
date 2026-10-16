@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { HistoryDrive, TrendDateRange } from "./energy-history";
 import { Clock3, Route } from "lucide-react";
 import { convertGpsPoints, loadAMap, reverseGeocode, type AMapApi } from "@/lib/amap-client";
 import {
@@ -75,10 +76,9 @@ function localDayKey(value: string) {
   ].join("-");
 }
 
-function calendarDayKeys(startDay: string, endDate = new Date()) {
-  const [year, month, day] = startDay.split("-").map(Number);
-  const cursor = new Date(year, month - 1, day, 12);
-  const end = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate(), 12);
+function calendarDayKeys(startDay: string, endDay: string) {
+  const cursor = new Date(`${startDay}T12:00:00`);
+  const end = new Date(`${endDay}T12:00:00`);
   const days: string[] = [];
   while (cursor <= end) {
     days.push(localDayKey(cursor.toISOString()));
@@ -842,7 +842,15 @@ function DriveDailyTrendChart({
   );
 }
 
-export default function DriveHistory() {
+export default function DriveHistory({
+  dateRange,
+  trendDrives,
+  historyStart,
+}: {
+  dateRange: TrendDateRange;
+  trendDrives: HistoryDrive[];
+  historyStart: string | null;
+}) {
   const [drives, setDrives] = useState<Drive[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [positions, setPositions] = useState<Position[]>([]);
@@ -980,7 +988,7 @@ export default function DriveHistory() {
       driveCount: number;
     }>();
 
-    for (const drive of drives) {
+    for (const drive of trendDrives) {
       const key = localDayKey(drive.started_at);
       const summary = groups.get(key) ?? {
         distanceKm: 0,
@@ -1004,9 +1012,8 @@ export default function DriveHistory() {
       groups.set(key, summary);
     }
 
-    if (groups.size === 0) return [];
-    const firstDay = [...groups.keys()].sort()[0];
-    return calendarDayKeys(firstDay).map((day) => {
+    const firstDay = dateRange.from ?? historyStart ?? dateRange.to;
+    return calendarDayKeys(firstDay, dateRange.to).map((day) => {
       const summary = groups.get(day) ?? {
         distanceKm: 0,
         durationMinutes: 0,
@@ -1024,7 +1031,8 @@ export default function DriveHistory() {
         driveCount: summary.driveCount,
       };
     });
-  }, [drives]);
+  }, [trendDrives, dateRange.from, dateRange.to, historyStart]);
+
 
   const dailyChartWidth = Math.max(760, dailySummaries.length * 28 + 120);
   useEffect(() => {
@@ -1040,14 +1048,6 @@ export default function DriveHistory() {
     previousDailyChartWidth.current = nextWidth;
   }, [dailySummaries.length]);
 
-  const loadOlderFromChart = () => {
-    if (dailyChartRef.current?.scrollLeft !== undefined &&
-        dailyChartRef.current.scrollLeft < 60 &&
-        hasMoreDrives &&
-        !loadingOlder) {
-      void loadOlderDrives();
-    }
-  };
 
   const loadOlderFromList = (element: HTMLDivElement) => {
     if (element.scrollHeight - element.scrollTop - element.clientHeight < 56 &&
@@ -1068,7 +1068,6 @@ export default function DriveHistory() {
         <div
           className="drive-daily-scroll"
           ref={dailyChartRef}
-          onScroll={loadOlderFromChart}
           aria-label="按日期行程趋势图，可横向滚动查看更多历史日期"
         >
           <DriveDailyTrendChart data={dailySummaries} width={dailyChartWidth} />
