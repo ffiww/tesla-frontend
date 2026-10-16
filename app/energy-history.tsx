@@ -9,6 +9,7 @@ import {
   Line,
   LineChart,
   ResponsiveContainer,
+  ReferenceLine,
   Tooltip,
   XAxis,
   YAxis,
@@ -127,6 +128,12 @@ function adjustedDomain(
   return domainHigh > domainLow
     ? [domainLow, domainHigh]
     : [domainLow, Math.min(maximum, domainLow + 1)];
+}
+
+function symmetricDomain(values: number[]): [number, number] {
+  const maximum = Math.max(0, ...values.map((value) => Math.abs(value)));
+  const bound = maximum > 0 ? maximum * 1.12 : 1;
+  return [-bound, bound];
 }
 
 function formatAxisTick(value: number, unit = "") {
@@ -386,6 +393,22 @@ export default function EnergyHistory({
     });
   }, [chargeData, selectedDayKeys]);
 
+  const combinedDailyData = useMemo(
+    () =>
+      selectedDayKeys.map((day, index) => {
+        const drive = driveDailyData[index];
+        const charge = chargeDailyData[index];
+        return {
+          day,
+          driveEnergyKwh: drive?.energyKwh ?? 0,
+          driveBatteryPct: drive?.batteryPct ?? (drive?.driveCount ? null : 0),
+          chargeEnergyKwh: -(charge?.energyKwh ?? 0),
+          chargeBatteryPct: charge?.batteryPct == null ? null : -charge.batteryPct,
+        };
+      }),
+    [selectedDayKeys, driveDailyData, chargeDailyData]
+  );
+
   const chargePoints = useMemo(
     () =>
       (history?.charge_points ?? [])
@@ -416,22 +439,18 @@ export default function EnergyHistory({
       .filter((value): value is number => typeof value === "number" && Number.isFinite(value))
   );
   const batteryDomain = adjustedDomain(batteryValues, 0, 100);
-  const driveEnergyDomain = adjustedDomain(
-    hiddenDriveSeries.includes("energyKwh") ? [] : driveDailyData.map((item) => item.energyKwh)
-  );
-  const driveBatteryPctDomain = adjustedDomain(
-    hiddenDriveSeries.includes("batteryPct")
+  const energyDomain = symmetricDomain([
+    ...(hiddenDriveSeries.includes("energyKwh") ? [] : combinedDailyData.map((item) => item.driveEnergyKwh)),
+    ...(hiddenChargeDailySeries.includes("energyKwh") ? [] : combinedDailyData.map((item) => item.chargeEnergyKwh)),
+  ]);
+  const percentageDomain = symmetricDomain([
+    ...(hiddenDriveSeries.includes("batteryPct")
       ? []
-      : driveDailyData.map((item) => item.batteryPct).filter((value): value is number => value != null)
-  );
-  const chargeEnergyDomain = adjustedDomain(
-    hiddenChargeDailySeries.includes("energyKwh") ? [] : chargeDailyData.map((item) => item.energyKwh)
-  );
-  const chargeBatteryPctDomain = adjustedDomain(
-    hiddenChargeDailySeries.includes("batteryPct")
+      : combinedDailyData.map((item) => item.driveBatteryPct).filter((value): value is number => value != null)),
+    ...(hiddenChargeDailySeries.includes("batteryPct")
       ? []
-      : chargeDailyData.map((item) => item.batteryPct).filter((value): value is number => value != null)
-  );
+      : combinedDailyData.map((item) => item.chargeBatteryPct).filter((value): value is number => value != null)),
+  ]);
   const sessionBatteryDomain = adjustedDomain(
     chargePoints.map((point) => point.battery).filter((value): value is number => value != null && !hiddenChargeSessionSeries.includes("battery")),
     0,
@@ -502,69 +521,83 @@ export default function EnergyHistory({
 
               <div className="energy-panel daily-energy-panel">
                 <div className="energy-panel-heading">
-                  <strong>按日充电与行程耗电</strong>
-                  <span>上图：充电 · 下图：行程耗电（kWh / %）</span>
+                  <strong>每日能耗与充电</strong>
+                  <span>零线上方为行程耗电，下方为充电</span>
                 </div>
-                {selectedDayKeys.length === 0 ? (
+                {combinedDailyData.length === 0 ? (
                   <div className="energy-history-empty">所选周期没有有效日期。</div>
                 ) : (
-                  <div className="daily-energy-stack">
-                    <div className="daily-energy-subchart">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={chargeDailyData} margin={{ top: 8, right: 16, left: -12, bottom: 0 }}>
-                          <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
-                          <XAxis dataKey="day" hide />
-                          {!hiddenChargeDailySeries.includes("energyKwh") && <YAxis yAxisId="energy" domain={chargeEnergyDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "kWh")} tick={{ fontSize: 10, fill: "#858991" }} />}
-                          {!hiddenChargeDailySeries.includes("batteryPct") && <YAxis yAxisId="batteryPct" orientation="right" domain={chargeBatteryPctDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "%")} tick={{ fontSize: 10, fill: "#858991" }} />}
-                          <Tooltip
-                            labelFormatter={(value) => `日期：${dateOnly.format(new Date(`${value}T12:00:00`))}`}
-                            formatter={(value, name) => [
-                              value == null ? "—" : `${Number(value).toFixed(1)} ${name === "energyKwh" ? "kWh" : "%"}`,
-                              name === "energyKwh" ? "当日充入电量" : "当日电量增加",
-                            ]}
-                          />
-                          {!hiddenChargeDailySeries.includes("energyKwh") && <Bar yAxisId="energy" dataKey="energyKwh" name="energyKwh" fill="#e82127" radius={[5, 5, 0, 0]} />}
-                          {!hiddenChargeDailySeries.includes("batteryPct") && <Line yAxisId="batteryPct" dataKey="batteryPct" name="batteryPct" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                      <ClickableChartLegend
-                        items={[{ key: "energyKwh", label: "充电量 · kWh", color: "#e82127" }, { key: "batteryPct", label: "充电百分比 · %", color: "#3186c8" }]}
-                        hidden={hiddenChargeDailySeries}
-                        onToggle={(key) => toggle(setHiddenChargeDailySeries, key)}
-                      />
-                    </div>
-                    <div className="daily-energy-subchart">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={driveDailyData} margin={{ top: 8, right: 16, left: -12, bottom: 0 }}>
-                          <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
-                          <XAxis
-                            dataKey="day"
-                            tickFormatter={(value) => dateOnly.format(new Date(`${value}T12:00:00`))}
-                            minTickGap={24}
-                            tick={{ fontSize: 10, fill: "#858991" }}
-                          />
-                          {!hiddenDriveSeries.includes("energyKwh") && <YAxis yAxisId="energy" domain={driveEnergyDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "kWh")} tick={{ fontSize: 10, fill: "#858991" }} />}
-                          {!hiddenDriveSeries.includes("batteryPct") && <YAxis yAxisId="batteryPct" orientation="right" domain={driveBatteryPctDomain} allowDataOverflow tickFormatter={(value) => formatAxisTick(Number(value), "%")} tick={{ fontSize: 10, fill: "#858991" }} />}
-                          <Tooltip
-                            labelFormatter={(value) => `日期：${dateOnly.format(new Date(`${value}T12:00:00`))}`}
-                            formatter={(value, name) => [
-                              value == null ? "—" : `${Number(value).toFixed(1)} ${name === "energyKwh" ? "kWh" : "%"}`,
-                              name === "energyKwh" ? "当日行程耗电" : "当日电量消耗",
-                            ]}
-                          />
-                          {!hiddenDriveSeries.includes("energyKwh") && <Bar yAxisId="energy" dataKey="energyKwh" name="energyKwh" fill="#e82127" radius={[5, 5, 0, 0]} />}
-                          {!hiddenDriveSeries.includes("batteryPct") && <Line yAxisId="batteryPct" dataKey="batteryPct" name="batteryPct" stroke="#3186c8" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />}
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                      <ClickableChartLegend
-                        items={[{ key: "energyKwh", label: "行程耗电 · kWh", color: "#e82127" }, { key: "batteryPct", label: "耗电百分比 · %", color: "#3186c8" }]}
-                        hidden={hiddenDriveSeries}
-                        onToggle={(key) => toggle(setHiddenDriveSeries, key)}
-                      />
-                    </div>
+                  <div className="energy-history-chart daily-energy-single-chart">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart
+                        data={combinedDailyData}
+                        margin={{ top: 8, right: 18, left: -10, bottom: 0 }}
+                      >
+                        <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
+                        <XAxis
+                          dataKey="day"
+                          tickFormatter={(value) => dateOnly.format(new Date(`${value}T12:00:00`))}
+                          minTickGap={24}
+                          tick={{ fontSize: 10, fill: "#858991" }}
+                        />
+                        <YAxis
+                          yAxisId="energy"
+                          domain={energyDomain}
+                          allowDataOverflow
+                          tickFormatter={(value) => formatAxisTick(Number(value), "kWh")}
+                          tick={{ fontSize: 10, fill: "#858991" }}
+                        />
+                        <YAxis yAxisId="percentage" orientation="right" domain={percentageDomain} hide />
+                        <ReferenceLine y={0} yAxisId="energy" stroke="#626770" strokeWidth={1.4} />
+                        <Tooltip
+                          labelFormatter={(value) => `日期：${dateOnly.format(new Date(`${value}T12:00:00`))}`}
+                          formatter={(value, name) => {
+                            const number = Math.abs(Number(value));
+                            if (name === "driveEnergyKwh") return [`${number.toFixed(2)} kWh`, "行程耗电"];
+                            if (name === "chargeEnergyKwh") return [`${number.toFixed(2)} kWh`, "充入电量"];
+                            if (name === "driveBatteryPct") return [`${number.toFixed(1)}%`, "耗电百分比"];
+                            return [`${number.toFixed(1)}%`, "充电百分比"];
+                          }}
+                        />
+                        {!hiddenDriveSeries.includes("energyKwh") && (
+                          <Bar yAxisId="energy" dataKey="driveEnergyKwh" name="driveEnergyKwh" stackId="daily-energy" barSize={13} fill="#e82127" radius={[4, 4, 0, 0]} />
+                        )}
+                        {!hiddenChargeDailySeries.includes("energyKwh") && (
+                          <Bar yAxisId="energy" dataKey="chargeEnergyKwh" name="chargeEnergyKwh" stackId="daily-energy" barSize={13} fill="#3186c8" radius={[0, 0, 4, 4]} />
+                        )}
+                        {!hiddenDriveSeries.includes("batteryPct") && (
+                          <Line yAxisId="percentage" type="monotone" dataKey="driveBatteryPct" name="driveBatteryPct" stroke="#f28e2b" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                        )}
+                        {!hiddenChargeDailySeries.includes("batteryPct") && (
+                          <Line yAxisId="percentage" type="monotone" dataKey="chargeBatteryPct" name="chargeBatteryPct" stroke="#26a69a" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
+                        )}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                    <ClickableChartLegend
+                      items={[
+                        { key: "energyKwh", label: "行程耗电 · kWh", color: "#e82127" },
+                        { key: "batteryPct", label: "耗电百分比 · %", color: "#f28e2b" },
+                        { key: "chargeEnergyKwh", label: "充入电量 · kWh", color: "#3186c8" },
+                        { key: "chargeBatteryPct", label: "充电百分比 · %", color: "#26a69a" },
+                      ]}
+                      hidden={[
+                        ...hiddenDriveSeries,
+                        ...(hiddenChargeDailySeries.includes("energyKwh") ? ["chargeEnergyKwh"] : []),
+                        ...(hiddenChargeDailySeries.includes("batteryPct") ? ["chargeBatteryPct"] : []),
+                      ]}
+                      onToggle={(key) => {
+                        if (key === "energyKwh" || key === "batteryPct") {
+                          toggle(setHiddenDriveSeries, key);
+                        } else if (key === "chargeEnergyKwh") {
+                          toggle(setHiddenChargeDailySeries, "energyKwh");
+                        } else {
+                          toggle(setHiddenChargeDailySeries, "batteryPct");
+                        }
+                      }}
+                    />
                   </div>
                 )}
-                <p className="energy-history-note">两张图共用同一日期范围和横轴；无行程或无充电的日期按 0 展示。</p>
+                <p className="energy-history-note">柱形显示 kWh，曲线显示百分比；耗电向上，充电向下。无行程或无充电日期显示为 0。</p>
               </div>
             </div>
           </section>
