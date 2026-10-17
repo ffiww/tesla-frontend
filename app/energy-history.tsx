@@ -148,13 +148,18 @@ function alignedSignedDomain(
 ): [number, number] {
   const positiveMaximum = Math.max(0, ...positiveValues);
   const negativeMaximum = Math.max(0, ...negativeValues.map((value) => Math.abs(value)));
-  const ratio = Math.max(0.05, Math.min(0.95, zeroFromTop));
+  const ratio = Math.max(Number.EPSILON, Math.min(1 - Number.EPSILON, zeroFromTop));
   const totalBound = Math.max(
     positiveMaximum > 0 ? positiveMaximum * 1.12 / ratio : 0,
     negativeMaximum > 0 ? negativeMaximum * 1.12 / (1 - ratio) : 0,
     1
   );
   return [-(1 - ratio) * totalBound, ratio * totalBound];
+}
+
+function signedAxisTicks(domain: [number, number]): number[] {
+  const [minimum, maximum] = domain;
+  return [minimum, minimum / 2, 0, maximum / 2, maximum];
 }
 
 function formatAxisTick(value: number, unit = "") {
@@ -573,6 +578,7 @@ export default function EnergyHistory({
                             yAxisId="energy"
                             width={66}
                             domain={energyDomain}
+                            ticks={signedAxisTicks(energyDomain)}
                             allowDataOverflow
                             tickFormatter={(value) => formatAxisTick(Number(value), "kWh")}
                             tick={{ fontSize: 10, fill: "#858991" }}
@@ -582,6 +588,7 @@ export default function EnergyHistory({
                             orientation="right"
                             width={58}
                             domain={percentageDomain}
+                            ticks={signedAxisTicks(percentageDomain)}
                             allowDataOverflow
                             tickFormatter={(value) => formatAxisTick(Number(value), "%")}
                             tick={{ fontSize: 10, fill: "#858991" }}
