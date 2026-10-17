@@ -549,6 +549,7 @@ export default function EnergyHistory({
                       <ResponsiveContainer width="100%" height="100%">
                         <ComposedChart
                           data={combinedDailyData}
+                          stackOffset="sign"
                           margin={{ top: 10, right: 6, left: 2, bottom: 0 }}
                         >
                           <CartesianGrid stroke="#eceef0" strokeDasharray="3 3" />
@@ -589,10 +590,10 @@ export default function EnergyHistory({
                             }}
                           />
                           {!hiddenDriveSeries.includes("energyKwh") && (
-                            <Bar yAxisId="energy" dataKey="driveEnergyKwh" name="driveEnergyKwh" barSize={13} fill="#e82127" radius={[4, 4, 0, 0]} />
+                            <Bar yAxisId="energy" dataKey="driveEnergyKwh" name="driveEnergyKwh" stackId="daily-energy" barSize={13} fill="#e82127" radius={[4, 4, 0, 0]} />
                           )}
                           {!hiddenChargeDailySeries.includes("energyKwh") && (
-                            <Bar yAxisId="energy" dataKey="chargeEnergyKwh" name="chargeEnergyKwh" barSize={13} fill="#3186c8" radius={[0, 0, 4, 4]} />
+                            <Bar yAxisId="energy" dataKey="chargeEnergyKwh" name="chargeEnergyKwh" stackId="daily-energy" barSize={13} fill="#3186c8" radius={[0, 0, 4, 4]} />
                           )}
                           {!hiddenDriveSeries.includes("batteryPct") && (
                             <Line yAxisId="percentage" type="monotone" dataKey="driveBatteryPct" name="driveBatteryPct" stroke="#f28e2b" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
