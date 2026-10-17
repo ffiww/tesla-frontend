@@ -134,27 +134,13 @@ function signedDomain(
   positiveValues: number[],
   negativeValues: number[]
 ): [number, number] {
-  const positiveMaximum = Math.max(0, ...positiveValues);
-  const negativeMaximum = Math.max(0, ...negativeValues.map((value) => Math.abs(value)));
-  const positiveBound = positiveMaximum > 0 ? positiveMaximum * 1.12 : 0.5;
-  const negativeBound = negativeMaximum > 0 ? negativeMaximum * 1.12 : 0.5;
-  return [-negativeBound, positiveBound];
-}
-
-function alignedSignedDomain(
-  positiveValues: number[],
-  negativeValues: number[],
-  zeroFromTop: number
-): [number, number] {
-  const positiveMaximum = Math.max(0, ...positiveValues);
-  const negativeMaximum = Math.max(0, ...negativeValues.map((value) => Math.abs(value)));
-  const ratio = Math.max(Number.EPSILON, Math.min(1 - Number.EPSILON, zeroFromTop));
-  const totalBound = Math.max(
-    positiveMaximum > 0 ? positiveMaximum * 1.12 / ratio : 0,
-    negativeMaximum > 0 ? negativeMaximum * 1.12 / (1 - ratio) : 0,
-    1
+  const maximumMagnitude = Math.max(
+    0,
+    ...positiveValues.map((value) => Math.abs(value)),
+    ...negativeValues.map((value) => Math.abs(value))
   );
-  return [-(1 - ratio) * totalBound, ratio * totalBound];
+  const bound = maximumMagnitude > 0 ? maximumMagnitude * 1.12 : 0.5;
+  return [-bound, bound];
 }
 
 function signedAxisTicks(domain: [number, number]): number[] {
@@ -472,17 +458,15 @@ export default function EnergyHistory({
     ? []
     : combinedDailyData.map((item) => item.chargeEnergyKwh);
   const energyDomain = signedDomain(driveEnergyValues, chargeEnergyValues);
-  const energyZeroFromTop = energyDomain[1] / (energyDomain[1] - energyDomain[0]);
   const drivePercentageValues = hiddenDriveSeries.includes("batteryPct")
     ? []
     : combinedDailyData.map((item) => item.driveBatteryPct).filter((value): value is number => value != null);
   const chargePercentageValues = hiddenChargeDailySeries.includes("batteryPct")
     ? []
     : combinedDailyData.map((item) => item.chargeBatteryPct).filter((value): value is number => value != null);
-  const percentageDomain = alignedSignedDomain(
+  const percentageDomain = signedDomain(
     drivePercentageValues,
-    chargePercentageValues,
-    energyZeroFromTop
+    chargePercentageValues
   );
   const sessionBatteryDomain = adjustedDomain(
     chargePoints.map((point) => point.battery).filter((value): value is number => value != null && !hiddenChargeSessionSeries.includes("battery")),
