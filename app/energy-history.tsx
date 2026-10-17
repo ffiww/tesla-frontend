@@ -589,10 +589,10 @@ export default function EnergyHistory({
                             }}
                           />
                           {!hiddenDriveSeries.includes("energyKwh") && (
-                            <Bar yAxisId="energy" dataKey="driveEnergyKwh" name="driveEnergyKwh" stackId="daily-energy" barSize={13} fill="#e82127" radius={[4, 4, 0, 0]} />
+                            <Bar yAxisId="energy" dataKey="driveEnergyKwh" name="driveEnergyKwh" barSize={13} fill="#e82127" radius={[4, 4, 0, 0]} />
                           )}
                           {!hiddenChargeDailySeries.includes("energyKwh") && (
-                            <Bar yAxisId="energy" dataKey="chargeEnergyKwh" name="chargeEnergyKwh" stackId="daily-energy" barSize={13} fill="#3186c8" radius={[0, 0, 4, 4]} />
+                            <Bar yAxisId="energy" dataKey="chargeEnergyKwh" name="chargeEnergyKwh" barSize={13} fill="#3186c8" radius={[0, 0, 4, 4]} />
                           )}
                           {!hiddenDriveSeries.includes("batteryPct") && (
                             <Line yAxisId="percentage" type="monotone" dataKey="driveBatteryPct" name="driveBatteryPct" stroke="#f28e2b" strokeWidth={2} dot={false} connectNulls isAnimationActive={false} />
