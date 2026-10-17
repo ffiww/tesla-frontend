@@ -104,8 +104,10 @@
 .vehicle-location-copy .eyebrow svg{color:#e82127}
 .vehicle-location-copy h2{margin:0;font-size:clamp(1.3rem,2.4vw,1.8rem);line-height:1.35;letter-spacing:-.025em}
 .vehicle-location-copy>p:last-child{margin:10px 0 0;color:#73777e;font-size:.82rem}
-.drive-chart .recharts-tooltip-wrapper{pointer-events:none!important}
-.drive-chart .recharts-default-tooltip{border:1px solid #e1e4e8!important;border-radius:10px!important;box-shadow:0 8px 24px rgba(22,24,29,.12)!important}
+.recharts-tooltip-wrapper{pointer-events:none!important}
+.recharts-default-tooltip{background:rgba(255,255,255,.68)!important;border:1px solid rgba(255,255,255,.78)!important;border-radius:12px!important;box-shadow:0 8px 26px rgba(22,24,29,.16)!important;backdrop-filter:blur(9px);-webkit-backdrop-filter:blur(9px)}
+.recharts-tooltip-label,.recharts-tooltip-item{background:transparent!important;color:#30343a!important}
+.recharts-tooltip-item-list{background:transparent!important}
 .drive-chart .recharts-legend-wrapper{font-size:.75rem}
 .drive-chart .recharts-legend-item-text{color:#656a72!important}
 @media(max-width:820px){.hero-grid{grid-template-columns:1fr 1fr}.hero-grid .charge-card{grid-column:1/-1}.metric-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.vehicle-location-card{min-height:240px}}
@@ -248,13 +250,14 @@
 @media(max-width:640px){.trend-range-card{align-items:flex-start;flex-direction:column;padding:14px}.trend-range-controls{width:100%;gap:6px}.trend-range-option{padding:7px 10px;font-size:.72rem}.trend-range-custom{align-items:stretch;flex-direction:column}.trend-range-custom label,.trend-range-custom input{width:100%}.trend-range-apply{align-self:flex-start}}
 
 
-/* Daily charging and drive energy share one date axis around a clear zero baseline. */
+/* Shared chart spacing and legend layout. */
 .energy-overview-grid.energy-trend-grid{grid-template-columns:minmax(0,1fr)}
-.daily-energy-single-chart{height:340px;margin-top:8px}
-.daily-energy-single-chart .recharts-cartesian-grid-horizontal line:first-child,
-.daily-energy-single-chart .recharts-cartesian-grid-horizontal line:last-child{opacity:.45}
-.daily-energy-panel .chart-legend{gap:6px 18px;margin-left:38px}
+.daily-energy-chart-layout{display:flex;flex-direction:column;gap:8px;min-width:0;margin-top:8px}
+.daily-energy-chart-plot{height:330px;min-width:0}
+.daily-energy-panel .chart-legend{display:flex;align-items:center;justify-content:flex-start;flex-wrap:wrap;gap:6px 18px;margin:0;padding:8px 2px 0;border-top:1px solid #eceef1}
+.chart-legend-item{white-space:nowrap}
+.energy-history-note{margin:8px 0 0;color:#858991;font-size:.72rem;line-height:1.5}
 @media(max-width:640px){
-  .daily-energy-single-chart{height:300px}
-  .daily-energy-panel .chart-legend{gap:6px 12px;margin-left:28px}
+  .daily-energy-chart-plot{height:295px}
+  .daily-energy-panel .chart-legend{gap:4px 12px;padding-top:7px}
 }
