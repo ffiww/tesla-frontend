@@ -635,6 +635,7 @@ export default function EnergyHistory({
                       }}
                     />
                   </div>
+                )}
               </div>
             </div>
           </section>
