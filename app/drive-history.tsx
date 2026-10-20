@@ -261,10 +261,17 @@ function durationLabel(start: string, end: string | null) {
 function speedColor(speedKmh: number | null, maxSpeedKmh: number) {
   if (speedKmh == null) return "#9298a0";
   const ratio = Math.max(0, Math.min(1, speedKmh / maxSpeedKmh));
-  const slow = [229, 57, 53];
-  const fast = [38, 166, 91];
-  const rgb = slow.map((value, index) =>
-    Math.round(value + (fast[index] - value) * ratio)
+  const stops = [
+    { position: 0, color: [201, 121, 122] },
+    { position: 0.5, color: [204, 174, 111] },
+    { position: 1, color: [113, 164, 137] },
+  ];
+  const lower = ratio <= 0.5 ? stops[0] : stops[1];
+  const upper = ratio <= 0.5 ? stops[1] : stops[2];
+  const localRatio =
+    (ratio - lower.position) / (upper.position - lower.position);
+  const rgb = lower.color.map((value, index) =>
+    Math.round(value + (upper.color[index] - value) * localRatio)
   );
   return `#${rgb.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
 }
@@ -283,6 +290,13 @@ function RouteMap({
   const containerRef = useRef<HTMLDivElement>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [mapLoading, setMapLoading] = useState(false);
+  const legendSpeeds = speedPoints.flatMap((point) =>
+    typeof point.value === "number" && Number.isFinite(point.value)
+      ? [point.value * 1.609344]
+      : []
+  );
+  const legendMaxSpeedKmh =
+    legendSpeeds.length > 0 ? Math.max(...legendSpeeds) : null;
 
   useEffect(() => {
     const valid = points.filter(
@@ -384,7 +398,7 @@ function RouteMap({
             path: [path[index], point],
             strokeColor: speedColor(segmentSpeed, maxSpeedKmh),
             strokeWeight: 5,
-            strokeOpacity: 0.92,
+            strokeOpacity: 0.82,
             lineJoin: "round",
             lineCap: "round",
           });
@@ -447,7 +461,23 @@ function RouteMap({
       <div className="route-legend">
         <span><i className="route-start-dot" />起点</span>
         <span><i className="route-end-dot" />终点</span>
-        <span className="route-speed-legend"><i className="route-speed-gradient" />速度：慢 → 快</span>
+        <span className="route-speed-legend" aria-label={legendMaxSpeedKmh == null ? "速度数据暂缺" : `速度刻度，0 至 ${Math.round(legendMaxSpeedKmh)} 公里每小时`}>
+          {legendMaxSpeedKmh == null ? (
+            <span className="route-speed-unavailable">速度数据暂缺</span>
+          ) : (
+            <>
+              <span className="route-speed-caption">速度 · km/h</span>
+              <span className="route-speed-scale">
+                <i className="route-speed-gradient" />
+                <span className="route-speed-ticks">
+                  <span>0</span>
+                  <span>{Math.round(legendMaxSpeedKmh / 2)}</span>
+                  <span>{Math.round(legendMaxSpeedKmh)}</span>
+                </span>
+              </span>
+            </>
+          )}
+        </span>
         <span>GPS 轨迹点 · 高德坐标转换</span>
       </div>
     </div>
