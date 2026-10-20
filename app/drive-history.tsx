@@ -262,9 +262,9 @@ function speedColor(speedKmh: number | null, maxSpeedKmh: number) {
   if (speedKmh == null) return "#9298a0";
   const ratio = Math.max(0, Math.min(1, speedKmh / maxSpeedKmh));
   const stops = [
-    { position: 0, color: [59, 130, 246] },
-    { position: 0.5, color: [139, 92, 246] },
-    { position: 1, color: [249, 115, 22] },
+    { position: 0, color: [201, 121, 122] },
+    { position: 0.5, color: [204, 174, 111] },
+    { position: 1, color: [113, 164, 137] },
   ];
   const lower = ratio <= 0.5 ? stops[0] : stops[1];
   const upper = ratio <= 0.5 ? stops[1] : stops[2];
@@ -398,7 +398,7 @@ function RouteMap({
             path: [path[index], point],
             strokeColor: speedColor(segmentSpeed, maxSpeedKmh),
             strokeWeight: 5,
-            strokeOpacity: 0.92,
+            strokeOpacity: 0.82,
             lineJoin: "round",
             lineCap: "round",
           });
