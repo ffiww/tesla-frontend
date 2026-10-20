@@ -258,11 +258,26 @@ function durationLabel(start: string, end: string | null) {
     : `${restMinutes}分钟`;
 }
 
+function speedColor(speedKmh: number | null, maxSpeedKmh: number) {
+  if (speedKmh == null) return "#9298a0";
+  const ratio = Math.max(0, Math.min(1, speedKmh / maxSpeedKmh));
+  const slow = [229, 57, 53];
+  const fast = [38, 166, 91];
+  const rgb = slow.map((value, index) =>
+    Math.round(value + (fast[index] - value) * ratio)
+  );
+  return `#${rgb.map((value) => value.toString(16).padStart(2, "0")).join("")}`;
+}
+
+const NO_SPEED_TREND_POINTS: TrendPoint[] = [];
+
 function RouteMap({
   points,
+  speedPoints,
   onEndpointsConverted,
 }: {
   points: Position[];
+  speedPoints: TrendPoint[];
   onEndpointsConverted: (endpoints: { start: [number, number]; end: [number, number] } | null) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -277,6 +292,40 @@ function RouteMap({
         Math.abs(point.latitude) <= 90 &&
         Math.abs(point.longitude) <= 180
     );
+    const speeds = speedPoints
+      .filter((point): point is TrendPoint & { value: number } => typeof point.value === "number")
+      .map((point) => ({
+        timestamp: new Date(point.recorded_at).getTime(),
+        speedKmh: point.value * 1.609344,
+      }))
+      .filter((point) => Number.isFinite(point.timestamp) && Number.isFinite(point.speedKmh))
+      .sort((left, right) => left.timestamp - right.timestamp);
+    const maxSpeedKmh = Math.max(1, ...speeds.map((point) => point.speedKmh));
+
+    const nearestSpeed = (recordedAt: string): number | null => {
+      if (speeds.length === 0) return null;
+      const timestamp = new Date(recordedAt).getTime();
+      if (!Number.isFinite(timestamp)) return null;
+      let low = 0;
+      let high = speeds.length;
+      while (low < high) {
+        const middle = (low + high) >> 1;
+        if (speeds[middle].timestamp < timestamp) low = middle + 1;
+        else high = middle;
+      }
+      const candidates = [speeds[low - 1], speeds[low]].filter(
+        (candidate): candidate is (typeof speeds)[number] => candidate != null
+      );
+      if (candidates.length === 0) return null;
+      const nearest = candidates.reduce((best, candidate) =>
+        Math.abs(candidate.timestamp - timestamp) < Math.abs(best.timestamp - timestamp)
+          ? candidate
+          : best
+      );
+      return Math.abs(nearest.timestamp - timestamp) <= 30_000
+        ? nearest.speedKmh
+        : null;
+    };
 
     const container = containerRef.current;
     if (!container || valid.length === 0) {
@@ -302,7 +351,6 @@ function RouteMap({
       .then(async (AMap) => {
         if (!active) return;
 
-        // Show the basemap while coordinate conversion runs.
         map = new AMap.Map(container, {
           center: [sampled[0].longitude, sampled[0].latitude],
           zoom: 13,
@@ -325,14 +373,21 @@ function RouteMap({
           throw new Error("高德返回了无效的转换坐标");
         }
 
-        const line = new AMap.Polyline({
-          path,
-          strokeColor: "#e82127",
-          strokeWeight: 5,
-          strokeOpacity: 0.9,
-          lineJoin: "round",
-          lineCap: "round",
-          showDir: true,
+        const segments = path.slice(1).map((point, index) => {
+          const startSpeed = nearestSpeed(sampled[index].recorded_at);
+          const endSpeed = nearestSpeed(sampled[index + 1].recorded_at);
+          const segmentSpeed =
+            startSpeed != null && endSpeed != null
+              ? (startSpeed + endSpeed) / 2
+              : startSpeed ?? endSpeed;
+          return new AMap.Polyline({
+            path: [path[index], point],
+            strokeColor: speedColor(segmentSpeed, maxSpeedKmh),
+            strokeWeight: 5,
+            strokeOpacity: 0.92,
+            lineJoin: "round",
+            lineCap: "round",
+          });
         });
         const start = new AMap.Marker({
           position: path[0],
@@ -344,7 +399,7 @@ function RouteMap({
           title: "行程终点",
           label: { content: "终点", direction: "top" },
         });
-        const overlays = [line, start, finish];
+        const overlays = [...segments, start, finish];
         map.add(overlays);
         map.setFitView(overlays, false, [48, 48, 48, 48]);
         onEndpointsConverted({
@@ -365,7 +420,7 @@ function RouteMap({
       active = false;
       map?.destroy();
     };
-  }, [points, onEndpointsConverted]);
+  }, [points, speedPoints, onEndpointsConverted]);
 
   const validCount = points.filter(
     (point) =>
@@ -386,12 +441,13 @@ function RouteMap({
 
   return (
     <div className="amap-route-wrap">
-      <div ref={containerRef} className="amap-route-map" aria-label="高德地图行程轨迹" />
+      <div ref={containerRef} className="amap-route-map" aria-label="按行驶速度着色的高德地图行程轨迹" />
       {mapLoading && <div className="amap-route-error">正在加载高德地图和轨迹…</div>}
       {mapError && <div className="amap-route-error">{mapError}</div>}
       <div className="route-legend">
         <span><i className="route-start-dot" />起点</span>
         <span><i className="route-end-dot" />终点</span>
+        <span className="route-speed-legend"><i className="route-speed-gradient" />速度：慢 → 快</span>
         <span>GPS 轨迹点 · 高德坐标转换</span>
       </div>
     </div>
@@ -1181,7 +1237,7 @@ export default function DriveHistory({
                 {loadingRoute ? (
                   <div className="drive-history-empty">正在读取轨迹…</div>
                 ) : (
-                  <RouteMap points={positions} onEndpointsConverted={setRouteEndpoints} />
+                  <RouteMap points={positions} speedPoints={trends.VehicleSpeed ?? NO_SPEED_TREND_POINTS} onEndpointsConverted={setRouteEndpoints} />
                 )}
                 <DriveTrendChart trends={trends} />
 
