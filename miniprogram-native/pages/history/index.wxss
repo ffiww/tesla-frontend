@@ -1,0 +1,42 @@
+.history-heading { padding:16rpx 4rpx 22rpx; }
+.history-heading .section-title { margin-top:8rpx; }
+.range-tabs,.section-tabs { display:flex; gap:10rpx; overflow-x:auto; margin-bottom:20rpx; }
+.range-tab { flex:none; border:1rpx solid #e0e2e5; background:#fff; color:#777c84; padding:14rpx 22rpx; border-radius:999rpx; font-size:22rpx; }
+.range-tab.active,.section-tab.active { background:#fff2f2; border-color:#e82127; color:#d82329; }
+.section-tabs { border-bottom:1rpx solid #e4e5e8; gap:26rpx; padding:0 8rpx; }
+.section-tab { flex:none; padding:14rpx 4rpx 18rpx; color:#828790; font-size:22rpx; border-bottom:4rpx solid transparent; }
+.section-tab.active { background:transparent; border-bottom-color:#e82127; }
+.card-heading { display:flex; justify-content:space-between; align-items:center; gap:12rpx; margin-bottom:20rpx; }
+.card-heading .section-title { font-size:28rpx; }
+.card-heading .muted { font-size:19rpx; }
+.drive-row,.charge-row { display:flex; align-items:center; justify-content:space-between; padding:22rpx 0; border-top:1rpx solid #eff0f2; }
+.drive-main,.charge-row>view:first-child { display:flex; flex-direction:column; gap:9rpx; }
+.drive-date { font-size:25rpx; font-weight:700; }
+.drive-sub { color:#8a8f97; font-size:21rpx; }
+.drive-right { display:flex; align-items:center; gap:18rpx; color:#5c626b; font-size:21rpx; }
+.arrow { font-size:38rpx; color:#a0a4ab; }
+.load-more { margin-top:14rpx; }
+.daily-card { padding-left:18rpx; padding-right:18rpx; }
+.axis-labels { display:flex; justify-content:space-between; color:#868b93; font-size:18rpx; padding:0 12rpx; }
+.daily-scroll { white-space:nowrap; margin-top:14rpx; }
+.daily-bars { position:relative; display:flex; height:570rpx; align-items:stretch; padding:0 5rpx; }
+.zero-line { position:absolute; z-index:2; top:50%; left:0; right:0; border-top:2rpx dashed #8f949c; }
+.day-column { flex:1; min-width:62rpx; height:100%; display:flex; flex-direction:column; align-items:center; position:relative; }
+.bar-half { width:100%; display:flex; align-items:center; justify-content:center; position:relative; }
+.top-half { height:50%; align-items:flex-end; padding-bottom:2rpx; box-sizing:border-box; }
+.bottom-half { height:50%; align-items:flex-start; padding-top:2rpx; box-sizing:border-box; }
+.day-tick { z-index:3; position:absolute; top:calc(50% - 18rpx); transform:translateY(-50%); color:#838891; font-size:16rpx; background:#fff; padding:0 4rpx; }
+.energy-bar { width:24rpx; border-radius:8rpx 8rpx 0 0; max-height:250rpx; }
+.drive-bar { background:#de686c; }
+.charge-bar { background:#5598a5; border-radius:0 0 8rpx 8rpx; }
+.bar-label { position:absolute; color:#81868e; font-size:15rpx; }
+.top-half .bar-label { top:0; }
+.bottom-half .bar-label { bottom:0; }
+.legend { display:flex; justify-content:center; gap:26rpx; padding-top:18rpx; color:#777c84; font-size:20rpx; }
+.legend text { display:flex; align-items:center; }
+.legend-mark { display:inline-block; width:20rpx; height:7rpx; border-radius:6rpx; margin-right:8rpx; background:#de686c; }
+.legend-mark.charge { background:#5598a5; }
+.legend-mark.battery { background:#e82127; }
+.legend-mark.soc { background:#418cc8; }
+.legend.muted { font-size:18rpx; color:#969ba2; }
+.trend-canvas { width:100%; height:380rpx; }
