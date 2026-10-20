@@ -1,0 +1,67 @@
+<view class="page">
+  <view wx:if="{{!authorized}}" class="card connect-card">
+    <text class="eyebrow">TESLA · PRIVATE DASHBOARD</text>
+    <text class="connect-title">连接你的 Tesla 车况</text>
+    <text class="connect-copy">先在已登录的车况网页生成短期连接令牌，再粘贴到这里。令牌仅用于读取仪表盘数据和使用现有唤醒功能。</text>
+    <textarea class="token-input" placeholder="粘贴网页生成的短期令牌" value="{{tokenInput}}" bindinput="onTokenInput" auto-height="true" />
+    <button class="button-primary" bindtap="connect">连接仪表盘</button>
+    <text wx:if="{{error}}" class="error">{{error}}</text>
+    <view class="help-box">
+      <text>令牌获取步骤</text>
+      <text>1. 浏览器登录 tesla.ffiww.com</text>
+      <text>2. 打开 /api/miniprogram/session 并复制令牌</text>
+      <text>3. 粘贴到上方（令牌有效 24 小时）</text>
+    </view>
+  </view>
+
+  <block wx:else>
+    <view class="top-row">
+      <view>
+        <text class="eyebrow">个人车辆</text>
+        <view class="car-title">{{vehicle.name || '我的 Tesla'}}</view>
+        <view class="updated">{{online ? '在线' : 'offline'}} · {{updatedLabel}}</view>
+      </view>
+      <view class="actions">
+        <button wx:if="{{sleeping}}" class="small-action" bindtap="wake" loading="{{waking}}">{{waking ? '唤醒中' : '唤醒'}}</button>
+        <button class="small-action" bindtap="refresh" loading="{{loading}}">刷新</button>
+      </view>
+    </view>
+    <view wx:if="{{error}}" class="error">{{error}}</view>
+
+    <view class="card battery-card">
+      <view class="card-title">电量与续航</view>
+      <view class="ring-wrap">
+        <canvas canvas-id="batteryRing" class="ring-canvas" width="224" height="224"></canvas>
+        <view class="ring-center"><text class="battery-number">{{batteryText}}</text><text class="muted">电池电量</text></view>
+      </view>
+      <view class="range-line"><text>预计续航</text><strong>{{rangeText}}</strong></view>
+      <view class="ring-legend"><text><i class="red-dot"></i>外环 电量</text><text><i class="blue-dot"></i>内环 续航（0–435 km）</text></view>
+    </view>
+
+    <view class="card status-card">
+      <view class="section-title">当前状态</view>
+      <view class="charge-banner">
+        <view><text class="muted">充电状态</text><strong>{{chargeLabel}}</strong></view>
+        <view><text class="muted">充电速度</text><strong>{{chargeRateText}}</strong></view>
+        <view><text class="muted">预计充满</text><strong>{{minutesText}}</strong></view>
+      </view>
+      <view class="status-line"><text>车辆连接</text><strong>{{online ? '在线' : 'offline'}}</strong></view>
+      <view class="status-line"><text>更新时间</text><strong>{{updatedLabel}}</strong></view>
+    </view>
+
+    <view class="location-card">
+      <map wx:if="{{hasLocation}}" class="location-map" latitude="{{mapLatitude}}" longitude="{{mapLongitude}}" scale="14" enable-scroll="false" enable-zoom="false" show-location="true" markers="{{markers}}"></map>
+      <view wx:else class="location-placeholder"></view>
+      <view class="location-shade"></view>
+      <view class="location-copy"><text class="eyebrow">⌖ 车辆位置</text><text class="location-title">{{locationTitle}}</text><text class="location-sub">{{locationSubtitle}}</text><text class="location-time">{{locationUpdatedLabel}}</text></view>
+    </view>
+
+    <view class="metric-row">
+      <view class="metric-card"><text>总里程</text><strong>{{odometerText}}</strong></view>
+      <view class="metric-card"><text>车内 / 车外</text><strong>{{temperatureText}}</strong></view>
+      <view class="metric-card"><text>车辆锁止</text><strong>{{lockedText}}</strong></view>
+    </view>
+    <button class="button-plain history-button" bindtap="openHistory">查看历史行程与能耗趋势</button>
+    <view class="footnote">数据来自 Tesla Fleet API · 仅本人访问</view>
+  </block>
+</view>
