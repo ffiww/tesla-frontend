@@ -1,0 +1,26 @@
+{
+  "pages": [
+    "pages/dashboard/index",
+    "pages/history/index",
+    "pages/drive-detail/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "TESLA 车况",
+    "navigationBarBackgroundColor": "#17191d",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f3f4f6",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#8b9098",
+    "selectedColor": "#e82127",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/dashboard/index", "text": "车况" },
+      { "pagePath": "pages/history/index", "text": "历史" }
+    ]
+  },
+  "style": "v2",
+  "sitemapLocation": "sitemap.json"
+}
