@@ -1,0 +1,42 @@
+.connect-card { margin-top: 100rpx; padding: 42rpx 34rpx; }
+.connect-title { display:block; margin:24rpx 0 14rpx; font-size:40rpx; font-weight:750; }
+.connect-copy { display:block; color:#777c84; font-size:25rpx; line-height:1.7; margin-bottom:26rpx; }
+.token-input { min-height:110rpx; padding:20rpx; background:#f5f6f7; border-radius:16rpx; font-size:22rpx; margin-bottom:22rpx; }
+.help-box { margin-top:28rpx; padding:22rpx; background:#f7f8f9; border-radius:16rpx; display:flex; flex-direction:column; gap:12rpx; color:#7a7f87; font-size:22rpx; }
+.help-box text:first-child { color:#41454c; font-weight:650; margin-bottom:4rpx; }
+.top-row { display:flex; justify-content:space-between; align-items:center; margin:22rpx 2rpx 24rpx; }
+.car-title { font-size:38rpx; font-weight:750; margin-top:8rpx; }
+.updated { color:#898e96; font-size:21rpx; margin-top:9rpx; }
+.actions { display:flex; gap:10rpx; }
+.small-action { min-width:96rpx; padding:0 17rpx; height:62rpx; line-height:62rpx; border-radius:999rpx; background:#fff; border:1rpx solid #e1e3e6; color:#3d4249; font-size:21rpx; }
+.card-title { font-size:28rpx; font-weight:700; }
+.battery-card { padding-bottom:24rpx; }
+.ring-wrap { position:relative; width:448rpx; height:448rpx; margin:12rpx auto 0; }
+.ring-canvas { width:448rpx; height:448rpx; }
+.ring-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5rpx; font-size:21rpx; }
+.battery-number { font-size:58rpx; color:#25282d; font-weight:760; }
+.range-line { display:flex; justify-content:space-between; padding:0 14rpx; font-size:23rpx; color:#7b8088; }
+.range-line strong { color:#2b2f35; font-size:25rpx; }
+.ring-legend { display:flex; justify-content:center; gap:22rpx; margin-top:22rpx; color:#838890; font-size:19rpx; }
+.red-dot,.blue-dot { display:inline-block; width:12rpx; height:12rpx; margin-right:8rpx; border-radius:50%; background:#e82127; }
+.blue-dot { background:#4d92c8; }
+.section-title { font-size:29rpx; }
+.charge-banner { display:flex; justify-content:space-between; gap:10rpx; margin:22rpx 0; padding:20rpx 16rpx; background:#f7f8f9; border-radius:16rpx; }
+.charge-banner view { display:flex; flex-direction:column; gap:8rpx; font-size:20rpx; }
+.charge-banner strong { color:#292d32; font-size:22rpx; }
+.status-line { display:flex; justify-content:space-between; padding:14rpx 0; border-top:1rpx solid #f0f1f2; font-size:22rpx; }
+.status-line text { color:#828790; }
+.status-line strong { font-weight:600; }
+.location-card { position:relative; overflow:hidden; height:300rpx; margin-bottom:20rpx; border-radius:24rpx; background:#e9eef0; }
+.location-map,.location-placeholder { position:absolute; inset:0; width:100%; height:100%; filter:saturate(.65); }
+.location-placeholder { background:linear-gradient(135deg,#edf0e9,#e6edf3); }
+.location-shade { position:absolute; inset:0; background:linear-gradient(90deg,rgba(255,255,255,.96),rgba(255,255,255,.76) 58%,rgba(255,255,255,.32)); }
+.location-copy { position:absolute; top:28rpx; left:28rpx; right:22rpx; display:flex; flex-direction:column; gap:8rpx; }
+.location-title { font-size:34rpx; font-weight:720; }
+.location-sub,.location-time { font-size:20rpx; color:#7a7f86; }
+.metric-row { display:grid; grid-template-columns:repeat(3,1fr); gap:12rpx; margin-bottom:20rpx; }
+.metric-card { background:#fff; border:1rpx solid #e3e5e8; border-radius:18rpx; padding:19rpx 14rpx; min-height:112rpx; display:flex; flex-direction:column; justify-content:space-between; }
+.metric-card text { color:#858a92; font-size:19rpx; }
+.metric-card strong { color:#292d32; font-size:23rpx; }
+.history-button { margin:0; }
+.footnote { text-align:center; color:#a0a4ab; font-size:18rpx; padding:22rpx 0 6rpx; }
