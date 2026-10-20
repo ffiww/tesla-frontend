@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { handleMiniProgramProxy } from "@/lib/miniprogram-proxy";
 
 type RouteContext = { params: Promise<{ path?: string[] }> };
 
@@ -134,10 +135,14 @@ async function proxyAMapService(request: NextRequest, path: string[]) {
 }
 
 export async function GET(request: NextRequest, context: RouteContext) {
+  const { path } = await context.params;
+  if (path?.[0] === "miniprogram") {
+    return handleMiniProgramProxy(request, path.slice(1));
+  }
+
   const session = request.cookies.get("tesla_dashboard_session")?.value;
   if (!isValidDashboardSession(session)) return unauthorized();
 
-  const { path } = await context.params;
   if (path?.length) {
     return proxyAMapService(request, path);
   }
@@ -179,4 +184,13 @@ export async function GET(request: NextRequest, context: RouteContext) {
       { status: 502 }
     );
   }
+}
+
+
+export async function POST(request: NextRequest, context: RouteContext) {
+  const { path = [] } = await context.params;
+  if (path[0] !== "miniprogram") {
+    return NextResponse.json({ success: false, error: "Method Not Allowed" }, { status: 405 });
+  }
+  return handleMiniProgramProxy(request, path.slice(1));
 }

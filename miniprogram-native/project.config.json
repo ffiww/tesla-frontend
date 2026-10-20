@@ -1,0 +1,22 @@
+{
+  "description": "Tesla 车况原生微信小程序",
+  "packOptions": { "ignore": ["README.md"] },
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "compileWorklet": false,
+    "minifyWXML": true,
+    "minifyWXSS": true,
+    "localPlugins": false,
+    "condition": false
+  },
+  "compileType": "miniprogram",
+  "libVersion": "3.8.8",
+  "appid": "wxafae8e0395ac4982",
+  "projectname": "tesla-car-status",
+  "miniprogramRoot": "./",
+  "condition": {}
+}

@@ -1,0 +1,50 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="card empty">正在读取行程详情…</view>
+  <view wx:if="{{error}}" class="card error">{{error}}</view>
+  <block wx:if="{{!loading && drive}}">
+    <view class="card detail-summary">
+      <text class="eyebrow">行程详情</text>
+      <view class="detail-date">{{startedLabel}}</view>
+      <view class="endpoint"><text class="start-dot"></text><text>起点：{{startName}}</text></view>
+      <view class="endpoint"><text class="end-dot"></text><text>终点：{{endName}}</text></view>
+      <view class="summary-line">{{distanceLabel}} · {{durationLabel}} · {{positionCount}} 个位置点</view>
+      <view class="metric-pills"><text>{{energyLabel}}</text><text>{{efficiencyLabel}}</text><text>{{speedLabel}}</text><text>{{batteryUseLabel}}</text></view>
+    </view>
+
+    <view class="card map-card">
+      <view class="card-heading"><text class="section-title">行程轨迹</text><text class="muted">按速度着色</text></view>
+      <map wx:if="{{hasRoute}}" class="route-map" latitude="{{centerLatitude}}" longitude="{{centerLongitude}}" scale="{{mapScale}}" include-points="{{mapPoints}}" show-location="false" markers="{{markers}}" polyline="{{polylines}}" enable-rotate="false" enable-3D="false"></map>
+      <view wx:else class="empty map-empty">这段行程没有可展示的位置轨迹</view>
+      <view class="speed-legend"><text>慢 {{minSpeedLabel}}</text><view class="speed-gradient"></view><text>{{maxSpeedLabel}} 快</text></view>
+      <view class="speed-legend-caption"><text>慢 · 柔和红</text><text>快 · 柔和绿</text></view>
+    </view>
+
+    <view class="card chart-card">
+      <view class="card-heading"><text class="section-title">速度趋势</text><text class="muted">km/h</text></view>
+      <canvas canvas-id="speedChart" class="trend-canvas" width="320" height="190"></canvas>
+    </view>
+    <view class="card chart-card">
+      <view class="card-heading"><text class="section-title">电量与 SOC</text><text class="muted">%</text></view>
+      <canvas canvas-id="batteryChart" class="trend-canvas" width="320" height="190"></canvas>
+      <view class="legend"><text><i class="legend-mark battery"></i>电池电量</text><text><i class="legend-mark soc"></i>SOC</text></view>
+    </view>
+    <view class="card chart-card">
+      <view class="card-heading"><text class="section-title">加速度</text><text class="muted">m/s²</text></view>
+      <canvas canvas-id="accelerationChart" class="trend-canvas" width="320" height="190"></canvas>
+      <view class="legend"><text><i class="legend-mark lateral"></i>横向</text><text><i class="legend-mark longitudinal"></i>纵向</text></view>
+    </view>
+    <view class="card chart-card">
+      <view class="card-heading"><text class="section-title">油门与刹车</text><text class="muted">% / 状态</text></view>
+      <canvas canvas-id="pedalChart" class="trend-canvas" width="320" height="190"></canvas>
+    </view>
+    <view class="card chart-card">
+      <view class="card-heading"><text class="section-title">内外温度</text><text class="muted">°C</text></view>
+      <canvas canvas-id="temperatureChart" class="trend-canvas" width="320" height="190"></canvas>
+    </view>
+    <view class="card chart-card">
+      <view class="card-heading"><text class="section-title">胎压趋势</text><text class="muted">bar</text></view>
+      <canvas canvas-id="tpmsChart" class="trend-canvas" width="320" height="190"></canvas>
+      <text wx:if="{{!hasTpms}}" class="chart-note">这段行程没有足够的胎压遥测样本</text>
+    </view>
+  </block>
+</view>
