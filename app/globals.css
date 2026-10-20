@@ -265,3 +265,11 @@
 .route-speed-legend{gap:8px!important}
 .route-speed-gradient{display:inline-block;width:76px;height:8px;border-radius:999px;background:linear-gradient(90deg,#e53935 0%,#f3b33d 50%,#26a65b 100%);box-shadow:inset 0 0 0 1px rgba(31,35,40,.08)}
 @media(max-width:540px){.route-speed-gradient{width:58px}}
+
+.route-legend .route-speed-legend{display:flex;flex-direction:column;align-items:stretch;gap:3px;min-width:132px}
+.route-speed-caption{font-size:.68rem;font-weight:650;letter-spacing:.01em;color:#626872}
+.route-legend .route-speed-scale{display:flex;flex-direction:column;align-items:stretch;width:132px;gap:3px}
+.route-legend .route-speed-gradient{display:block;width:100%;height:8px;border-radius:999px;background:linear-gradient(90deg,rgba(201,121,122,.84) 0%,rgba(204,174,111,.84) 50%,rgba(113,164,137,.84) 100%);box-shadow:inset 0 0 0 1px rgba(31,35,40,.08)}
+.route-legend .route-speed-ticks{display:flex;align-items:center;justify-content:space-between;width:100%;gap:0;font-size:.64rem;line-height:1.2;color:#777d86;font-variant-numeric:tabular-nums}
+.route-legend .route-speed-unavailable{color:#9298a0;font-size:.68rem}
+@media(max-width:540px){.route-legend .route-speed-legend{min-width:112px}.route-legend .route-speed-scale{width:112px}}
