@@ -1,0 +1,62 @@
+<view class="page">
+  <view class="history-heading"><text class="eyebrow">TESLA · HISTORY</text><view class="section-title">历史行程与能耗</view></view>
+  <view class="range-tabs">
+    <view wx:for="{{ranges}}" wx:key="value" class="range-tab {{range === item.value ? 'active' : ''}}" data-value="{{item.value}}" bindtap="changeRange">{{item.label}}</view>
+  </view>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+  <view wx:if="{{loading}}" class="card empty">正在读取历史数据…</view>
+  <block wx:else>
+    <view class="section-tabs">
+      <view class="section-tab {{section === 'drives' ? 'active' : ''}}" data-value="drives" bindtap="changeSection">行程</view>
+      <view class="section-tab {{section === 'daily' ? 'active' : ''}}" data-value="daily" bindtap="changeSection">每日能耗与充电</view>
+      <view class="section-tab {{section === 'battery' ? 'active' : ''}}" data-value="battery" bindtap="changeSection">电量趋势</view>
+    </view>
+
+    <block wx:if="{{section === 'drives'}}">
+      <view class="card list-card">
+        <view class="card-heading"><text class="section-title">历史行程</text><text class="muted">{{drives.length}} 段</text></view>
+        <view wx:if="{{!drives.length}}" class="empty">所选周期内没有行程记录</view>
+        <view wx:for="{{drives}}" wx:key="id" class="drive-row" data-id="{{item.id}}" bindtap="openDrive">
+          <view class="drive-main"><text class="drive-date">{{item.startedLabel}}</text><text class="drive-sub">{{item.distanceLabel}} · {{item.durationLabel}}</text></view>
+          <view class="drive-right"><text>{{item.energyLabel}}</text><text class="arrow">›</text></view>
+        </view>
+        <button wx:if="{{hasMore}}" class="button-plain load-more" bindtap="loadMore" loading="{{loadingMore}}">加载更早行程</button>
+      </view>
+    </block>
+
+    <block wx:if="{{section === 'daily'}}">
+      <view class="card daily-card">
+        <view class="card-heading"><text class="section-title">每日能耗与充电</text><text class="muted">零线上方为行程耗电，下方为充电</text></view>
+        <view class="axis-labels"><text>行程耗电 · kWh</text><text>日期</text><text>充入电量 · kWh</text></view>
+        <scroll-view class="daily-scroll" scroll-x="true" enhanced="true" show-scrollbar="false">
+          <view class="daily-bars" style="width: {{dailyWidth}}rpx">
+            <view class="zero-line"></view>
+            <view wx:for="{{dailyBars}}" wx:key="day" class="day-column">
+              <view class="bar-half top-half"><view wx:if="{{item.driveHeight > 0}}" class="energy-bar drive-bar" style="height: {{item.driveHeight}}rpx"></view><text wx:if="{{item.driveHeight > 0}}" class="bar-label">{{item.driveLabel}}</text></view>
+              <view class="day-tick">{{item.label}}</view>
+              <view class="bar-half bottom-half"><view wx:if="{{item.chargeHeight > 0}}" class="energy-bar charge-bar" style="height: {{item.chargeHeight}}rpx"></view><text wx:if="{{item.chargeHeight > 0}}" class="bar-label">{{item.chargeLabel}}</text></view>
+            </view>
+          </view>
+        </scroll-view>
+        <view class="legend"><text><i class="legend-mark drive"></i>行程耗电</text><text><i class="legend-mark charge"></i>充入电量</text></view>
+        <view class="legend muted"><text>每日耗电比例 {{dailyBatteryUse}}%</text><text>充电比例 {{dailyBatteryAdded}}%</text></view>
+      </view>
+    </block>
+
+    <block wx:if="{{section === 'battery'}}">
+      <view class="card chart-card">
+        <view class="card-heading"><text class="section-title">电量趋势</text><text class="muted">无数据时沿用上次记录值</text></view>
+        <canvas canvas-id="batteryTrend" class="trend-canvas" width="320" height="190"></canvas>
+        <view class="legend"><text><i class="legend-mark battery"></i>电池电量</text><text><i class="legend-mark soc"></i>SOC</text></view>
+      </view>
+      <view class="card list-card">
+        <view class="card-heading"><text class="section-title">单次充电</text><text class="muted">{{charges.length}} 次</text></view>
+        <view wx:if="{{!charges.length}}" class="empty">所选周期内没有充电记录</view>
+        <view wx:for="{{charges}}" wx:key="id" class="charge-row">
+          <view><text class="drive-date">{{item.startedLabel}}</text><text class="drive-sub">{{item.durationLabel}} · {{item.charging_type || '充电'}}</text></view>
+          <view class="drive-right"><text>{{item.energyLabel}}</text><text>{{item.batteryLabel}}</text></view>
+        </view>
+      </view>
+    </block>
+  </block>
+</view>
