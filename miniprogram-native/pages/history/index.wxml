@@ -8,6 +8,7 @@
   <block wx:else>
     <view class="section-tabs">
       <view class="section-tab {{section === 'drives' ? 'active' : ''}}" data-value="drives" bindtap="changeSection">行程</view>
+      <view class="section-tab {{section === 'dailyDrives' ? 'active' : ''}}" data-value="dailyDrives" bindtap="changeSection">每日行程</view>
       <view class="section-tab {{section === 'daily' ? 'active' : ''}}" data-value="daily" bindtap="changeSection">每日能耗与充电</view>
       <view class="section-tab {{section === 'battery' ? 'active' : ''}}" data-value="battery" bindtap="changeSection">电量趋势</view>
     </view>
@@ -21,6 +22,18 @@
           <view class="drive-right"><text>{{item.energyLabel}}</text><text class="arrow">›</text></view>
         </view>
         <button wx:if="{{hasMore}}" class="button-plain load-more" bindtap="loadMore" loading="{{loadingMore}}">加载更早行程</button>
+      </view>
+    </block>
+
+    <block wx:if="{{section === 'dailyDrives'}}">
+      <view class="card chart-card daily-drive-card">
+        <view class="card-heading"><text class="section-title">每日行程趋势</text><text class="muted">无行程日期显示为 0</text></view>
+        <view wx:if="{{!dailyDriveDays.length}}" class="empty">所选周期内没有行程数据</view>
+        <block wx:else>
+          <view class="daily-drive-metric"><view class="daily-drive-label"><i class="legend-mark mileage"></i><text>每日里程 · km</text></view><canvas canvas-id="dailyDriveDistance" class="daily-drive-canvas" width="320" height="168"></canvas></view>
+          <view class="daily-drive-metric"><view class="daily-drive-label"><i class="legend-mark duration"></i><text>驾驶时长 · 分钟</text></view><canvas canvas-id="dailyDriveDuration" class="daily-drive-canvas" width="320" height="168"></canvas></view>
+          <view class="daily-drive-metric"><view class="daily-drive-label"><i class="legend-mark energy"></i><text>行程耗电 · kWh</text></view><canvas canvas-id="dailyDriveEnergy" class="daily-drive-canvas" width="320" height="168"></canvas></view>
+        </block>
       </view>
     </block>
 
