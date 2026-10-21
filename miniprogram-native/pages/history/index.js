@@ -19,15 +19,15 @@ function daysFor(range) {
 Page({
   data: {
     range: "30", ranges: [{ value: "7", label: "近7天" }, { value: "30", label: "近30天" }, { value: "90", label: "近90天" }, { value: "all", label: "全部" }],
-    section: "drives", drives: [], charges: [], energy: null, dailyBars: [], dailyWidth: 620, batterySeries: [],
+    section: "drives", drives: [], charges: [], energy: null, dailyBars: [], dailyWidth: 620, dailyDriveDays: [], batterySeries: [],
     dailyBatteryUse: "0.0", dailyBatteryAdded: "0.0", hasMore: false, nextBefore: null, loading: false, loadingMore: false, error: ""
   },
   onLoad() { if (api.hasToken()) this.load(); else this.setData({ error: "请先在车况页连接仪表盘" }); },
   onShow() { if (api.hasToken() && !this.data.energy && !this.data.loading) this.load(); },
-  onReady() { this.drawBatteryChart(); },
+  onReady() { this.drawBatteryChart(); this.drawDailyDriveCharts(); },
   onPullDownRefresh() { this.load().finally(() => wx.stopPullDownRefresh()); },
   changeRange(event) { const range = event.currentTarget.dataset.value; if (range === this.data.range) return; this.setData({ range }); this.load(); },
-  changeSection(event) { this.setData({ section: event.currentTarget.dataset.value }, () => this.drawBatteryChart()); },
+  changeSection(event) { this.setData({ section: event.currentTarget.dataset.value }, () => { this.drawBatteryChart(); this.drawDailyDriveCharts(); }); },
   load() {
     if (!api.hasToken()) { this.setData({ error: "请先在车况页连接仪表盘" }); return Promise.resolve(); }
     this.setData({ loading: true, error: "", drives: [], nextBefore: null });
@@ -49,14 +49,15 @@ Page({
         batteryLabel: item.start_battery_level == null || item.end_battery_level == null ? "" : `${item.start_battery_level}% → ${item.end_battery_level}%`
       }));
       const dailyBars = this.makeDailyBars(energy);
+      const dailyDriveDays = this.makeDailyDriveDays(energy);
       const battery = energy.battery || {};
       const batterySeries = (battery.BatteryLevel || []).map(point => ({ recorded_at: point.recorded_at, value: Number(point.value) })).filter(point => Number.isFinite(point.value));
       const socSeries = (battery.Soc || []).map(point => ({ recorded_at: point.recorded_at, value: Number(point.value) })).filter(point => Number.isFinite(point.value));
-      this.setData({ drives, charges, energy, dailyBars, dailyWidth: Math.max(620, dailyBars.length * 66), batterySeries, socSeries,
+      this.setData({ drives, charges, energy, dailyBars, dailyDriveDays, dailyWidth: Math.max(620, dailyBars.length * 66), batterySeries, socSeries,
         hasMore: Boolean(driveResult.has_more), nextBefore: driveResult.next_before || null,
         dailyBatteryUse: this.percentSum(energy.drives || [], "start_battery_level", "end_battery_level", true),
         dailyBatteryAdded: this.percentSum(energy.charging_sessions || [], "start_battery_level", "end_battery_level", false)
-      }, () => this.drawBatteryChart());
+      }, () => { this.drawBatteryChart(); this.drawDailyDriveCharts(); });
     }).catch(error => this.setData({ error: error.message || "历史数据读取失败" })).finally(() => this.setData({ loading: false, loadingMore: false }));
   },
   percentSum(rows, startKey, endKey, decrease) {
@@ -88,6 +89,41 @@ Page({
       const date = new Date(`${key}T12:00:00`);
       return { day: key, label: index % 3 === 0 || index === keys.length - 1 ? `${date.getMonth() + 1}/${date.getDate()}` : "", driveHeight: Math.round(drive / max * 210), chargeHeight: Math.round(charge / max * 210), driveLabel: drive ? drive.toFixed(1) : "", chargeLabel: charge ? charge.toFixed(1) : "" };
     });
+  },
+  makeDailyDriveDays(energy) {
+    const to = new Date(); to.setHours(12, 0, 0, 0);
+    const fromKey = energy.range_start || daysFor(this.data.range) || dayKey(to);
+    const from = new Date(`${fromKey}T12:00:00`);
+    const spanDays = Math.max(1, Math.ceil((to - from) / 86400000) + 1);
+    const start = new Date(to); start.setDate(start.getDate() - spanDays + 1);
+    const byDay = new Map();
+    (energy.drives || []).forEach(item => {
+      const key = dayKey(new Date(item.started_at));
+      const current = byDay.get(key) || { distance: 0, duration: 0, energy: 0 };
+      const distance = Number(item.distance_km);
+      const used = Number(item.energy_used_kwh);
+      const duration = item.ended_at ? (new Date(item.ended_at) - new Date(item.started_at)) / 60000 : 0;
+      if (Number.isFinite(distance)) current.distance += distance;
+      if (Number.isFinite(used)) current.energy += used;
+      if (Number.isFinite(duration) && duration > 0) current.duration += duration;
+      byDay.set(key, current);
+    });
+    const days = [];
+    for (let cursor = new Date(start); cursor <= to; cursor.setDate(cursor.getDate() + 1)) {
+      const key = dayKey(cursor); const values = byDay.get(key) || { distance: 0, duration: 0, energy: 0 };
+      days.push({ day: key, label: `${cursor.getMonth() + 1}/${cursor.getDate()}`, ...values });
+    }
+    return days;
+  },
+  drawDailyDriveCharts() {
+    if (this.data.section !== "dailyDrives") return;
+    const days = this.data.dailyDriveDays || [];
+    const labels = days.map(item => item.label);
+    const makePoints = key => days.map(item => ({ value: item[key] }));
+    const common = { page: this, width: 320, height: 168, min: 0, labels };
+    drawLine("dailyDriveDistance", [{ points: makePoints("distance"), color: "#418cc8" }], { ...common, unit: " km", showXAxis: false });
+    drawLine("dailyDriveDuration", [{ points: makePoints("duration"), color: "#e8a23a" }], { ...common, unit: " 分", showXAxis: false });
+    drawLine("dailyDriveEnergy", [{ points: makePoints("energy"), color: "#e82127" }], { ...common, unit: " kWh" });
   },
   drawBatteryChart() {
     if (this.data.section !== "battery") return;
