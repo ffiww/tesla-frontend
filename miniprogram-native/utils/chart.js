@@ -18,7 +18,10 @@ function drawLine(canvasId, series, options = {}) {
   }
   let min = options.min != null ? options.min : Math.min(...values);
   let max = options.max != null ? options.max : Math.max(...values);
-  if (min === max) { min -= 1; max += 1; }
+  if (min === max) {
+    if (min === 0) max = 1;
+    else { min -= 1; max += 1; }
+  }
   const span = max - min;
   for (let index = 0; index <= 4; index += 1) {
     const y = top + plotHeight * index / 4;
@@ -42,9 +45,22 @@ function drawLine(canvasId, series, options = {}) {
     });
     if (started) { context.setStrokeStyle(item.color); context.setLineWidth(2.5); context.stroke(); }
   });
-  context.setFillStyle("#858a92"); context.setFontSize(10);
-  context.fillText(options.startLabel || "较早", left, height - 5);
-  context.fillText(options.endLabel || "最近", width - right - 28, height - 5);
+  if (options.showXAxis !== false) {
+    context.setFillStyle("#858a92"); context.setFontSize(9);
+    const labels = options.labels || [];
+    if (labels.length) {
+      const indexes = [...new Set([0, Math.floor((labels.length - 1) / 2), labels.length - 1])];
+      indexes.forEach(index => {
+        const x = left + (labels.length === 1 ? plotWidth / 2 : plotWidth * index / (labels.length - 1));
+        const text = labels[index] || "";
+        const offset = index === 0 ? 0 : index === labels.length - 1 ? -28 : -12;
+        context.fillText(text, x + offset, height - 5);
+      });
+    } else {
+      context.fillText(options.startLabel || "较早", left, height - 5);
+      context.fillText(options.endLabel || "最近", width - right - 28, height - 5);
+    }
+  }
   context.draw();
 }
 
