@@ -1,6 +1,5 @@
 {
   "description": "Tesla 车况原生微信小程序",
-  "packOptions": { "ignore": ["README.md"] },
   "setting": {
     "urlCheck": true,
     "es6": true,
