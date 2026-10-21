@@ -258,18 +258,23 @@ function durationLabel(start: string, end: string | null) {
     : `${restMinutes}分钟`;
 }
 
-function speedColor(speedKmh: number | null, maxSpeedKmh: number) {
+function speedColor(
+  speedKmh: number | null,
+  minSpeedKmh: number,
+  maxSpeedKmh: number
+) {
   if (speedKmh == null) return "#9298a0";
-  const ratio = Math.max(0, Math.min(1, speedKmh / maxSpeedKmh));
+  const ratio = maxSpeedKmh > minSpeedKmh
+    ? Math.max(0, Math.min(1, (speedKmh - minSpeedKmh) / (maxSpeedKmh - minSpeedKmh)))
+    : 0.5;
   const stops = [
-    { position: 0, color: [201, 121, 122] },
-    { position: 0.5, color: [204, 174, 111] },
-    { position: 1, color: [113, 164, 137] },
+    { position: 0, color: [216, 91, 98] },
+    { position: 0.5, color: [213, 163, 73] },
+    { position: 1, color: [81, 161, 123] },
   ];
   const lower = ratio <= 0.5 ? stops[0] : stops[1];
   const upper = ratio <= 0.5 ? stops[1] : stops[2];
-  const localRatio =
-    (ratio - lower.position) / (upper.position - lower.position);
+  const localRatio = (ratio - lower.position) / (upper.position - lower.position);
   const rgb = lower.color.map((value, index) =>
     Math.round(value + (upper.color[index] - value) * localRatio)
   );
@@ -295,6 +300,8 @@ function RouteMap({
       ? [point.value * 1.609344]
       : []
   );
+  const legendMinSpeedKmh =
+    legendSpeeds.length > 0 ? Math.min(...legendSpeeds) : null;
   const legendMaxSpeedKmh =
     legendSpeeds.length > 0 ? Math.max(...legendSpeeds) : null;
 
@@ -314,7 +321,12 @@ function RouteMap({
       }))
       .filter((point) => Number.isFinite(point.timestamp) && Number.isFinite(point.speedKmh))
       .sort((left, right) => left.timestamp - right.timestamp);
-    const maxSpeedKmh = Math.max(1, ...speeds.map((point) => point.speedKmh));
+    const minSpeedKmh = speeds.length > 0
+      ? Math.min(...speeds.map((point) => point.speedKmh))
+      : 0;
+    const maxSpeedKmh = speeds.length > 0
+      ? Math.max(...speeds.map((point) => point.speedKmh))
+      : 0;
 
     const nearestSpeed = (recordedAt: string): number | null => {
       if (speeds.length === 0) return null;
@@ -396,9 +408,9 @@ function RouteMap({
               : startSpeed ?? endSpeed;
           return new AMap.Polyline({
             path: [path[index], point],
-            strokeColor: speedColor(segmentSpeed, maxSpeedKmh),
+            strokeColor: speedColor(segmentSpeed, minSpeedKmh, maxSpeedKmh),
             strokeWeight: 5,
-            strokeOpacity: 0.82,
+            strokeOpacity: 0.9,
             lineJoin: "round",
             lineCap: "round",
           });
@@ -461,7 +473,7 @@ function RouteMap({
       <div className="route-legend">
         <span><i className="route-start-dot" />起点</span>
         <span><i className="route-end-dot" />终点</span>
-        <span className="route-speed-legend" aria-label={legendMaxSpeedKmh == null ? "速度数据暂缺" : `速度刻度，0 至 ${Math.round(legendMaxSpeedKmh)} 公里每小时`}>
+        <span className="route-speed-legend" aria-label={legendMinSpeedKmh == null || legendMaxSpeedKmh == null ? "速度数据暂缺" : `速度刻度，${Math.round(legendMinSpeedKmh)} 至 ${Math.round(legendMaxSpeedKmh)} 公里每小时`}>
           {legendMaxSpeedKmh == null ? (
             <span className="route-speed-unavailable">速度数据暂缺</span>
           ) : (
@@ -470,8 +482,8 @@ function RouteMap({
               <span className="route-speed-scale">
                 <i className="route-speed-gradient" />
                 <span className="route-speed-ticks">
-                  <span>0</span>
-                  <span>{Math.round(legendMaxSpeedKmh / 2)}</span>
+                  <span>{Math.round(legendMinSpeedKmh)}</span>
+                  <span>{Math.round((legendMinSpeedKmh + legendMaxSpeedKmh) / 2)}</span>
                   <span>{Math.round(legendMaxSpeedKmh)}</span>
                 </span>
               </span>
