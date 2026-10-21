@@ -474,7 +474,7 @@ function RouteMap({
         <span><i className="route-start-dot" />起点</span>
         <span><i className="route-end-dot" />终点</span>
         <span className="route-speed-legend" aria-label={legendMinSpeedKmh == null || legendMaxSpeedKmh == null ? "速度数据暂缺" : `速度刻度，${Math.round(legendMinSpeedKmh)} 至 ${Math.round(legendMaxSpeedKmh)} 公里每小时`}>
-          {legendMaxSpeedKmh == null ? (
+          {legendMinSpeedKmh == null || legendMaxSpeedKmh == null ? (
             <span className="route-speed-unavailable">速度数据暂缺</span>
           ) : (
             <>
